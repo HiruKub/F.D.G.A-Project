@@ -33,34 +33,34 @@ ARCHITECTURE Behavioral OF GameLogic_FSM_tb IS
     CONSTANT CLK_PERIOD : TIME := 20 ns;
 
     -- UUT Signals
-    SIGNAL clk              : STD_LOGIC := '0';
-    SIGNAL reset            : STD_LOGIC := '1';
+    SIGNAL clk : STD_LOGIC := '0';
+    SIGNAL reset : STD_LOGIC := '1';
 
-    SIGNAL btn_up_raw       : STD_LOGIC := '0';
-    SIGNAL btn_down_raw     : STD_LOGIC := '0';
-    SIGNAL btn_left_raw     : STD_LOGIC := '0';
-    SIGNAL btn_right_raw    : STD_LOGIC := '0';
-    SIGNAL btn_enter_raw    : STD_LOGIC := '0';
+    SIGNAL btn_up_raw : STD_LOGIC := '0';
+    SIGNAL btn_down_raw : STD_LOGIC := '0';
+    SIGNAL btn_left_raw : STD_LOGIC := '0';
+    SIGNAL btn_right_raw : STD_LOGIC := '0';
+    SIGNAL btn_enter_raw : STD_LOGIC := '0';
 
-    SIGNAL cam_data_ready   : STD_LOGIC := '0';
-    SIGNAL enemy_type_in    : STD_LOGIC_VECTOR(1 DOWNTO 0) := "00";
+    SIGNAL cam_data_ready : STD_LOGIC := '0';
+    SIGNAL enemy_type_in : STD_LOGIC_VECTOR(1 DOWNTO 0) := "00";
     SIGNAL enemy_lvl_lsb_in : STD_LOGIC := '0';
 
-    SIGNAL state_code_out   : STD_LOGIC_VECTOR(3 DOWNTO 0);
-    SIGNAL cursor_out       : STD_LOGIC_VECTOR(1 DOWNTO 0);
+    SIGNAL state_code_out : STD_LOGIC_VECTOR(3 DOWNTO 0);
+    SIGNAL cursor_out : STD_LOGIC_VECTOR(1 DOWNTO 0);
 
-    SIGNAL player_type_out  : STD_LOGIC_VECTOR(1 DOWNTO 0);
-    SIGNAL player_lvl_out   : STD_LOGIC_VECTOR(5 DOWNTO 0);
-    SIGNAL player_hp_out    : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit HP
-    SIGNAL player_max_hp_o  : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit Max HP
+    SIGNAL player_type_out : STD_LOGIC_VECTOR(1 DOWNTO 0);
+    SIGNAL player_lvl_out : STD_LOGIC_VECTOR(5 DOWNTO 0);
+    SIGNAL player_hp_out : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit HP
+    SIGNAL player_max_hp_o : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit Max HP
 
-    SIGNAL enemy_type_out   : STD_LOGIC_VECTOR(1 DOWNTO 0);
-    SIGNAL enemy_lvl_out    : STD_LOGIC_VECTOR(5 DOWNTO 0);
-    SIGNAL enemy_hp_out     : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit HP
-    SIGNAL enemy_max_hp_o   : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit Max HP
+    SIGNAL enemy_type_out : STD_LOGIC_VECTOR(1 DOWNTO 0);
+    SIGNAL enemy_lvl_out : STD_LOGIC_VECTOR(5 DOWNTO 0);
+    SIGNAL enemy_hp_out : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit HP
+    SIGNAL enemy_max_hp_o : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit Max HP
 
     -- Simulation control flag
-    SIGNAL sim_finished     : BOOLEAN := FALSE;
+    SIGNAL sim_finished : BOOLEAN := FALSE;
 
 BEGIN
 
@@ -69,35 +69,35 @@ BEGIN
     -- Use CLK_FREQ_HZ = 1000 so debounce = 20 cycles (400 ns) and timers run fast!
     ----------------------------------------------------------------------------
     uut : ENTITY work.GameLogic_FSM
-        GENERIC MAP (
+        GENERIC MAP(
             CLK_FREQ_HZ => 1_000
         )
-        PORT MAP (
-            clk              => clk,
-            reset            => reset,
+        PORT MAP(
+            clk => clk,
+            reset => reset,
 
-            btn_up_raw       => btn_up_raw,
-            btn_down_raw     => btn_down_raw,
-            btn_left_raw     => btn_left_raw,
-            btn_right_raw    => btn_right_raw,
-            btn_enter_raw    => btn_enter_raw,
+            btn_up_raw => btn_up_raw,
+            btn_down_raw => btn_down_raw,
+            btn_left_raw => btn_left_raw,
+            btn_right_raw => btn_right_raw,
+            btn_enter_raw => btn_enter_raw,
 
-            cam_data_ready   => cam_data_ready,
-            enemy_type_in    => enemy_type_in,
+            cam_data_ready => cam_data_ready,
+            enemy_type_in => enemy_type_in,
             enemy_lvl_lsb_in => enemy_lvl_lsb_in,
 
-            state_code_out   => state_code_out,
-            cursor_out       => cursor_out,
+            state_code_out => state_code_out,
+            cursor_out => cursor_out,
 
-            player_type_out  => player_type_out,
-            player_lvl_out   => player_lvl_out,
-            player_hp_out    => player_hp_out,
-            player_max_hp_o  => player_max_hp_o,
+            player_type_out => player_type_out,
+            player_lvl_out => player_lvl_out,
+            player_hp_out => player_hp_out,
+            player_max_hp_o => player_max_hp_o,
 
-            enemy_type_out   => enemy_type_out,
-            enemy_lvl_out    => enemy_lvl_out,
-            enemy_hp_out     => enemy_hp_out,
-            enemy_max_hp_o   => enemy_max_hp_o
+            enemy_type_out => enemy_type_out,
+            enemy_lvl_out => enemy_lvl_out,
+            enemy_hp_out => enemy_hp_out,
+            enemy_max_hp_o => enemy_max_hp_o
         );
 
     ----------------------------------------------------------------------------
@@ -183,9 +183,9 @@ BEGIN
         WAIT FOR 200 ns;
         press_right; -- Next monster (Water, cursor = 10)
         WAIT FOR 200 ns;
-        press_left;  -- Previous monster (Plant, cursor = 01)
+        press_left; -- Previous monster (Plant, cursor = 01)
         WAIT FOR 200 ns;
-        press_left;  -- Previous monster (Fire, cursor = 00)
+        press_left; -- Previous monster (Fire, cursor = 00)
         WAIT FOR 200 ns;
 
         -- Step 4: Confirm Select Fire Monster with ENTER
@@ -204,11 +204,11 @@ BEGIN
         -- Step 6: FPGA 1 finishes histogram scan and sends enemy data:
         -- Enemy Element = Plant ("01"), Enemy Level LSB = '1' (Enemy Level = 1 + 5 = 6)
         WAIT FOR 2 us;
-        enemy_type_in    <= "01"; -- Plant
-        enemy_lvl_lsb_in <= '1';  -- Level + 5 = 6
-        cam_data_ready   <= '1';
+        enemy_type_in <= "01"; -- Plant
+        enemy_lvl_lsb_in <= '1'; -- Level + 5 = 6
+        cam_data_ready <= '1';
         WAIT FOR CLK_PERIOD * 2;
-        cam_data_ready   <= '0';
+        cam_data_ready <= '0';
         WAIT FOR CLK_PERIOD * 2;
 
         ASSERT state_code_out = "0100" REPORT "Error: Should be in ST_BATTLE_INTRO (4)" SEVERITY ERROR;
