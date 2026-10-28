@@ -7,13 +7,18 @@
 --              - Title Screen (ST_TITLE)
 --              - All-in-One VGA Interface (Outputs to FPGA 1 VGA Compositor)
 --              - Monster Selection & Inventory Persistence
---              - Camera Enemy Spawn & Level calculation (ST_CAM_CAPTURE)
+--              - Camera Enemy Spawn (ST_CAM_CAPTURE auto-timer/Enter, no cam_data_ready needed)
 --              - Battle System (Action Menu, Skills, Capture, Run)
 --              - 8-bit Level-Scaled Damage & HP System:
 --                  * Max HP = (Level * 2) + 16 (8 bits: 0..255)
 --                  * Base DMG = (Level / 2) + 2 (8 bits: 0..255)
 --                  * Elemental: Advantage x2, Neutral x1, Disadvantage /2
 --                  * Capture: HP <= 25% of Max HP (or <= 4)
+--              - Onboard LED Diagnostics:
+--                  * led(1:0) = enemy_type_in (Dominant color element)
+--                  * led(2)   = enemy_lvl_lsb_in (Level offset)
+--                  * led(3)   = '1' during ST_CAM_CAPTURE (Snapshot active)
+--                  * led(7:4) = state_code_out (Current Opcode 0..13)
 --------------------------------------------------------------------------------
 
 LIBRARY IEEE;
@@ -35,8 +40,7 @@ ENTITY GameLogic_FSM IS
         btn_right_raw : IN STD_LOGIC; -- D-PAD RIGHT
         btn_enter_raw : IN STD_LOGIC; -- ENTER / ACTION / CONFIRM
 
-        -- Camera & Enemy Interface from FPGA 1
-        cam_data_ready : IN STD_LOGIC; -- High pulse when camera finished scanning
+        -- Enemy Data Interface from FPGA 1 (via SPI status byte)
         enemy_type_in : IN STD_LOGIC_VECTOR(1 DOWNTO 0); -- Dominant Element (00: Fire, 01: Plant, 10: Water)
         enemy_lvl_lsb_in : IN STD_LOGIC; -- 2nd Color LSB ('0' = Lv, '1' = Lv+5)
 
@@ -63,7 +67,10 @@ ENTITY GameLogic_FSM IS
         enemy_type_out : OUT STD_LOGIC_VECTOR(1 DOWNTO 0); -- Dominant Element
         enemy_lvl_out : OUT STD_LOGIC_VECTOR(5 DOWNTO 0); -- Current Level (6 bits: 0..63)
         enemy_hp_out : OUT STD_LOGIC_VECTOR(7 DOWNTO 0); -- Current HP (8 bits: 0..255)
-        enemy_max_hp_o : OUT STD_LOGIC_VECTOR(7 DOWNTO 0) -- Max HP (8 bits: 0..255)
+        enemy_max_hp_o : OUT STD_LOGIC_VECTOR(7 DOWNTO 0); -- Max HP (8 bits: 0..255)
+
+        -- Diagnostic Onboard LEDs (Displays received camera data & Opcode)
+        led : OUT STD_LOGIC_VECTOR(7 DOWNTO 0)
     );
 END ENTITY GameLogic_FSM;
 
@@ -80,7 +87,7 @@ ARCHITECTURE Behavioral OF GameLogic_FSM IS
         ST_TITLE, -- 0: หน้าแรก (Title Screen)
         ST_SELECT_MON, -- 1: ฉากเลือกมอนสเตอร์ในคลัง (3 ตัวเริ่มต้น Lv 1)
         ST_CAM_LIVE, -- 2: ส่องกล้องดูภาพสด (Live Camera Feed)
-        ST_CAM_CAPTURE, -- 3: แช่ภาพนิ่ง (Snapshot Freeze) และรอผลสแกนสี
+        ST_CAM_CAPTURE, -- 3: แช่ภาพนิ่ง (Snapshot Freeze) และรับผลสแกนสี
         ST_BATTLE_INTRO, -- 4: ฉากเปิดตัวศัตรู (Prepare / Wild Monster Appeared)
         ST_ACTION_MENU, -- 5: เมนูคำสั่งหลัก (0: ATK, 1: CAPT, 2: RUN)
         ST_SKILL_MENU, -- 6: เมนูเลือกสกิล (0: Elemental, 1: Normal)
@@ -94,6 +101,9 @@ ARCHITECTURE Behavioral OF GameLogic_FSM IS
     );
 
     SIGNAL current_state : state_type := ST_INIT;
+
+    -- Internal State Code signal
+    SIGNAL state_code_int : STD_LOGIC_VECTOR(3 DOWNTO 0) := "0000";
 
     -- Button Signals after Debouncing and Edge Detection
     SIGNAL btn_up_pulse, btn_down_pulse, btn_left_pulse, btn_right_pulse, btn_enter_pulse : STD_LOGIC := '0';
@@ -125,7 +135,7 @@ ARCHITECTURE Behavioral OF GameLogic_FSM IS
     SIGNAL menu_idx : unsigned(1 DOWNTO 0) := "00"; -- 0: ATK, 1: CAPT, 2: RUN
     SIGNAL skill_idx : STD_LOGIC := '0'; -- 0: Elemental Strike, 1: Normal Tackle
 
-    -- Timer for Animations/Pauses (1.5 seconds @ CLK_FREQ_HZ)
+    -- Timer for Animations/Pauses/Snapshot (1.5 seconds @ CLK_FREQ_HZ)
     CONSTANT TIMER_1_5_SEC : INTEGER := (CLK_FREQ_HZ * 3) / 2;
     SIGNAL timer_cnt : INTEGER RANGE 0 TO TIMER_1_5_SEC := 0;
     SIGNAL timer_done : STD_LOGIC := '0';
@@ -319,8 +329,9 @@ BEGIN
 
         ELSIF rising_edge(clk) THEN
 
-            -- Animation & Pause Delay Timer
-            IF current_state = ST_BATTLE_INTRO OR
+            -- Animation, Pause & Snapshot Delay Timer
+            IF current_state = ST_CAM_CAPTURE OR
+                current_state = ST_BATTLE_INTRO OR
                 current_state = ST_PLAYER_ATK OR
                 current_state = ST_ENEMY_ATK OR
                 current_state = ST_CAPTURE_TRY THEN
@@ -408,9 +419,11 @@ BEGIN
 
                     ----------------------------------------------------------------
                     -- ST_CAM_CAPTURE (Opcode 3): แช่ภาพนิ่ง รอ FPGA 1 ประมวลผลเสร็จ
+                    -- ปลดล็อกด้วย Timer 1.5 วินาทีอัตโนมัติ หรือกดปุ่ม Enter
+                    -- (ไม่จำเป็นต้องใช้สาย cam_data_ready)
                     ----------------------------------------------------------------
                 WHEN ST_CAM_CAPTURE =>
-                    IF cam_data_ready = '1' THEN
+                    IF timer_done = '1' OR btn_enter_pulse = '1' THEN
                         -- ชนิดศัตรู: รับตรงจาก FPGA 1 (2 บิต: 00=Fire, 01=Plant, 10=Water)
                         e_type <= enemy_type_in;
 
@@ -583,22 +596,37 @@ BEGIN
     PROCESS (current_state)
     BEGIN
         CASE current_state IS
-            WHEN ST_TITLE => state_code_out <= "0000"; -- 0: Title
-            WHEN ST_SELECT_MON => state_code_out <= "0001"; -- 1: select char
-            WHEN ST_CAM_LIVE => state_code_out <= "0010"; -- 2: camera
-            WHEN ST_CAM_CAPTURE => state_code_out <= "0011"; -- 3: capture
-            WHEN ST_BATTLE_INTRO => state_code_out <= "0100"; -- 4: prepare
-            WHEN ST_ACTION_MENU => state_code_out <= "0101"; -- 5: action
-            WHEN ST_SKILL_MENU => state_code_out <= "0110"; -- 6: skill menu
-            WHEN ST_PLAYER_ATK => state_code_out <= "0111"; -- 7: ATK
-            WHEN ST_ENEMY_ATK => state_code_out <= "1000"; -- 8: E ATK
-            WHEN ST_CAPTURE_TRY => state_code_out <= "1001"; -- 9: Capt
-            WHEN ST_RUN_ESCAPE => state_code_out <= "1010"; -- 10: Evade
-            WHEN ST_VICTORYKO => state_code_out <= "1011"; -- 11: Victory
-            WHEN ST_DEFEAT => state_code_out <= "1100"; -- 12: Loss
-            WHEN ST_VICTORYCAP => state_code_out <= "1101"; -- 13: VictoryCap
-            WHEN OTHERS => state_code_out <= "0000";
+            WHEN ST_TITLE => state_code_int <= "0000"; -- 0: Title
+            WHEN ST_SELECT_MON => state_code_int <= "0001"; -- 1: select char
+            WHEN ST_CAM_LIVE => state_code_int <= "0010"; -- 2: camera
+            WHEN ST_CAM_CAPTURE => state_code_int <= "0011"; -- 3: capture
+            WHEN ST_BATTLE_INTRO => state_code_int <= "0100"; -- 4: prepare
+            WHEN ST_ACTION_MENU => state_code_int <= "0101"; -- 5: action
+            WHEN ST_SKILL_MENU => state_code_int <= "0110"; -- 6: skill menu
+            WHEN ST_PLAYER_ATK => state_code_int <= "0111"; -- 7: ATK
+            WHEN ST_ENEMY_ATK => state_code_int <= "1000"; -- 8: E ATK
+            WHEN ST_CAPTURE_TRY => state_code_int <= "1001"; -- 9: Capt
+            WHEN ST_RUN_ESCAPE => state_code_int <= "1010"; -- 10: Evade
+            WHEN ST_VICTORYKO => state_code_int <= "1011"; -- 11: Victory
+            WHEN ST_DEFEAT => state_code_int <= "1100"; -- 12: Loss
+            WHEN ST_VICTORYCAP => state_code_int <= "1101"; -- 13: VictoryCap
+            WHEN OTHERS => state_code_int <= "0000";
         END CASE;
     END PROCESS;
+
+    state_code_out <= state_code_int;
+
+    ----------------------------------------------------------------------------
+    -- 4. Diagnostic LED Outputs
+    -- led(1:0) = enemy_type_in (00: Fire, 01: Plant, 10: Water)
+    -- led(2)   = enemy_lvl_lsb_in (0: same lv, 1: lv+5)
+    -- led(3)   = '1' during ST_CAM_CAPTURE (Snapshot active)
+    -- led(7:4) = state_code_out (Current Opcode 0..13)
+    ----------------------------------------------------------------------------
+    led(1 DOWNTO 0) <= enemy_type_in;
+    led(2) <= enemy_lvl_lsb_in;
+    led(3) <= '1' WHEN current_state = ST_CAM_CAPTURE ELSE
+    '0';
+    led(7 DOWNTO 4) <= state_code_int;
 
 END ARCHITECTURE Behavioral;

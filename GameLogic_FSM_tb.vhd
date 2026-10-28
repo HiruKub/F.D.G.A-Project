@@ -1,17 +1,18 @@
 --------------------------------------------------------------------------------
 -- Project    : FPGA Camera-Based Monster Battle System (EDGE Spartan-7)
 -- Module     : GameLogic_FSM_tb.vhd
--- Description: Complete Testbench for GameLogic_FSM (5-Button, 8-bit HP Interface)
+-- Description: Complete Testbench for GameLogic_FSM (5-Button, 8-bit HP, LED Diagnostic)
 --              - Simulates 50 MHz Master Clock
 --              - Accelerated Simulation Clock Frequency (CLK_FREQ_HZ = 1000)
+--              - No cam_data_ready needed (Auto-Timer / Enter in ST_CAM_CAPTURE)
 --              - Tests 5 Buttons: Up, Down, Left, Right, Enter
---              - Tests 8-bit HP: player_hp_out, enemy_hp_out (0..255)
+--              - Tests 8-bit HP & LED outputs
 --              - Full Gameplay Scenario:
 --                  1. Power-on Reset
 --                  2. Title Screen -> Start Game (Enter)
 --                  3. Monster Select: Browse Left/Right/Up/Down -> Confirm Fire Mon (Enter)
 --                  4. Live Camera -> Capture Snapshot (Enter)
---                  5. FPGA 1 Camera Data Input (Plant Element, Lv 6, HP 28)
+--                  5. Feed Camera Data (Plant Element, Lv 6, HP 28) -> Auto/Enter to Intro
 --                  6. Battle Intro -> Action Menu (Enter)
 --                  7. Action Menu -> Skill Menu (Skill 1: Elemental Strike) (Enter)
 --                  8. Player Attack (Advantage x2: 4 DMG dealt to enemy) (Enter)
@@ -33,34 +34,35 @@ ARCHITECTURE Behavioral OF GameLogic_FSM_tb IS
     CONSTANT CLK_PERIOD : TIME := 20 ns;
 
     -- UUT Signals
-    SIGNAL clk : STD_LOGIC := '0';
-    SIGNAL reset : STD_LOGIC := '1';
+    SIGNAL clk              : STD_LOGIC := '0';
+    SIGNAL reset            : STD_LOGIC := '1';
 
-    SIGNAL btn_up_raw : STD_LOGIC := '0';
-    SIGNAL btn_down_raw : STD_LOGIC := '0';
-    SIGNAL btn_left_raw : STD_LOGIC := '0';
-    SIGNAL btn_right_raw : STD_LOGIC := '0';
-    SIGNAL btn_enter_raw : STD_LOGIC := '0';
+    SIGNAL btn_up_raw       : STD_LOGIC := '0';
+    SIGNAL btn_down_raw     : STD_LOGIC := '0';
+    SIGNAL btn_left_raw     : STD_LOGIC := '0';
+    SIGNAL btn_right_raw    : STD_LOGIC := '0';
+    SIGNAL btn_enter_raw    : STD_LOGIC := '0';
 
-    SIGNAL cam_data_ready : STD_LOGIC := '0';
-    SIGNAL enemy_type_in : STD_LOGIC_VECTOR(1 DOWNTO 0) := "00";
+    SIGNAL enemy_type_in    : STD_LOGIC_VECTOR(1 DOWNTO 0) := "00";
     SIGNAL enemy_lvl_lsb_in : STD_LOGIC := '0';
 
-    SIGNAL state_code_out : STD_LOGIC_VECTOR(3 DOWNTO 0);
-    SIGNAL cursor_out : STD_LOGIC_VECTOR(1 DOWNTO 0);
+    SIGNAL state_code_out   : STD_LOGIC_VECTOR(3 DOWNTO 0);
+    SIGNAL cursor_out       : STD_LOGIC_VECTOR(1 DOWNTO 0);
 
-    SIGNAL player_type_out : STD_LOGIC_VECTOR(1 DOWNTO 0);
-    SIGNAL player_lvl_out : STD_LOGIC_VECTOR(5 DOWNTO 0);
-    SIGNAL player_hp_out : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit HP
-    SIGNAL player_max_hp_o : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit Max HP
+    SIGNAL player_type_out  : STD_LOGIC_VECTOR(1 DOWNTO 0);
+    SIGNAL player_lvl_out   : STD_LOGIC_VECTOR(5 DOWNTO 0);
+    SIGNAL player_hp_out    : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit HP
+    SIGNAL player_max_hp_o  : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit Max HP
 
-    SIGNAL enemy_type_out : STD_LOGIC_VECTOR(1 DOWNTO 0);
-    SIGNAL enemy_lvl_out : STD_LOGIC_VECTOR(5 DOWNTO 0);
-    SIGNAL enemy_hp_out : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit HP
-    SIGNAL enemy_max_hp_o : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit Max HP
+    SIGNAL enemy_type_out   : STD_LOGIC_VECTOR(1 DOWNTO 0);
+    SIGNAL enemy_lvl_out    : STD_LOGIC_VECTOR(5 DOWNTO 0);
+    SIGNAL enemy_hp_out     : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit HP
+    SIGNAL enemy_max_hp_o   : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit Max HP
+
+    SIGNAL led              : STD_LOGIC_VECTOR(7 DOWNTO 0); -- Diagnostic LEDs
 
     -- Simulation control flag
-    SIGNAL sim_finished : BOOLEAN := FALSE;
+    SIGNAL sim_finished     : BOOLEAN := FALSE;
 
 BEGIN
 
@@ -69,35 +71,36 @@ BEGIN
     -- Use CLK_FREQ_HZ = 1000 so debounce = 20 cycles (400 ns) and timers run fast!
     ----------------------------------------------------------------------------
     uut : ENTITY work.GameLogic_FSM
-        GENERIC MAP(
+        GENERIC MAP (
             CLK_FREQ_HZ => 1_000
         )
-        PORT MAP(
-            clk => clk,
-            reset => reset,
+        PORT MAP (
+            clk              => clk,
+            reset            => reset,
 
-            btn_up_raw => btn_up_raw,
-            btn_down_raw => btn_down_raw,
-            btn_left_raw => btn_left_raw,
-            btn_right_raw => btn_right_raw,
-            btn_enter_raw => btn_enter_raw,
+            btn_up_raw       => btn_up_raw,
+            btn_down_raw     => btn_down_raw,
+            btn_left_raw     => btn_left_raw,
+            btn_right_raw    => btn_right_raw,
+            btn_enter_raw    => btn_enter_raw,
 
-            cam_data_ready => cam_data_ready,
-            enemy_type_in => enemy_type_in,
+            enemy_type_in    => enemy_type_in,
             enemy_lvl_lsb_in => enemy_lvl_lsb_in,
 
-            state_code_out => state_code_out,
-            cursor_out => cursor_out,
+            state_code_out   => state_code_out,
+            cursor_out       => cursor_out,
 
-            player_type_out => player_type_out,
-            player_lvl_out => player_lvl_out,
-            player_hp_out => player_hp_out,
-            player_max_hp_o => player_max_hp_o,
+            player_type_out  => player_type_out,
+            player_lvl_out   => player_lvl_out,
+            player_hp_out    => player_hp_out,
+            player_max_hp_o  => player_max_hp_o,
 
-            enemy_type_out => enemy_type_out,
-            enemy_lvl_out => enemy_lvl_out,
-            enemy_hp_out => enemy_hp_out,
-            enemy_max_hp_o => enemy_max_hp_o
+            enemy_type_out   => enemy_type_out,
+            enemy_lvl_out    => enemy_lvl_out,
+            enemy_hp_out     => enemy_hp_out,
+            enemy_max_hp_o   => enemy_max_hp_o,
+
+            led              => led
         );
 
     ----------------------------------------------------------------------------
@@ -162,7 +165,7 @@ BEGIN
 
     BEGIN
         REPORT "==================================================";
-        REPORT ">>> STARTING 5-BUTTON & 8-BIT HP SIMULATION <<<";
+        REPORT ">>> STARTING GAMELOGIC FSM SIMULATION (NO CAM_READY) <<<";
         REPORT "==================================================";
 
         -- Step 1: System Power-on Reset
@@ -183,9 +186,9 @@ BEGIN
         WAIT FOR 200 ns;
         press_right; -- Next monster (Water, cursor = 10)
         WAIT FOR 200 ns;
-        press_left; -- Previous monster (Plant, cursor = 01)
+        press_left;  -- Previous monster (Plant, cursor = 01)
         WAIT FOR 200 ns;
-        press_left; -- Previous monster (Fire, cursor = 00)
+        press_left;  -- Previous monster (Fire, cursor = 00)
         WAIT FOR 200 ns;
 
         -- Step 4: Confirm Select Fire Monster with ENTER
@@ -199,18 +202,22 @@ BEGIN
         WAIT FOR 1 us;
         press_enter;
         ASSERT state_code_out = "0011" REPORT "Error: Should be in ST_CAM_CAPTURE (3)" SEVERITY ERROR;
-        REPORT "[PASS] In ST_CAM_CAPTURE (Opcode 3). Freezing camera frame for histogram.";
+        ASSERT led(3) = '1' REPORT "Error: LED 3 should indicate capture active" SEVERITY ERROR;
+        REPORT "[PASS] In ST_CAM_CAPTURE (Opcode 3). Freezing camera frame, LED 3 is ON.";
 
-        -- Step 6: FPGA 1 finishes histogram scan and sends enemy data:
+        -- Step 6: FPGA 1 provides camera color via SPI:
         -- Enemy Element = Plant ("01"), Enemy Level LSB = '1' (Enemy Level = 1 + 5 = 6)
-        WAIT FOR 2 us;
-        enemy_type_in <= "01"; -- Plant
-        enemy_lvl_lsb_in <= '1'; -- Level + 5 = 6
-        cam_data_ready <= '1';
-        WAIT FOR CLK_PERIOD * 2;
-        cam_data_ready <= '0';
-        WAIT FOR CLK_PERIOD * 2;
+        enemy_type_in    <= "01"; -- Plant
+        enemy_lvl_lsb_in <= '1';  -- Level + 5 = 6
+        WAIT FOR 1 us;
 
+        -- Check that LEDs immediately reflect the received camera values:
+        ASSERT led(1 DOWNTO 0) = "01" REPORT "Error: LED(1:0) should show Plant ('01')" SEVERITY ERROR;
+        ASSERT led(2) = '1'           REPORT "Error: LED(2) should show Level LSB ('1')" SEVERITY ERROR;
+        REPORT "[PASS] LED diagnostics correctly display received values: Element=Plant (01), LSB=1.";
+
+        -- Press ENTER (or wait for timer) to advance to battle intro
+        press_enter;
         ASSERT state_code_out = "0100" REPORT "Error: Should be in ST_BATTLE_INTRO (4)" SEVERITY ERROR;
         ASSERT enemy_type_out = "01" REPORT "Error: Enemy should be Plant (01)" SEVERITY ERROR;
         ASSERT to_integer(unsigned(enemy_lvl_out)) = 6 REPORT "Error: Enemy Level should be 6" SEVERITY ERROR;
@@ -263,7 +270,7 @@ BEGIN
 
         WAIT FOR 1 us;
         REPORT "==================================================";
-        REPORT ">>> ALL TESTS PASSED! 8-BIT HP SIMULATION SUCCESSFUL! <<<";
+        REPORT ">>> ALL TESTS PASSED! SIMULATION SUCCESSFUL! <<<";
         REPORT "==================================================";
 
         sim_finished <= TRUE;
