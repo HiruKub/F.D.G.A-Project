@@ -9,9 +9,9 @@
 --              - Monster Selection & Inventory Persistence
 --              - Camera Enemy Spawn & Level calculation (ST_CAM_CAPTURE)
 --              - Battle System (Action Menu, Skills, Capture, Run)
---              - Level-Scaled Damage & HP System:
---                  * Max HP = (Level * 2) + 16
---                  * Base DMG = (Level / 2) + 2
+--              - 8-bit Level-Scaled Damage & HP System:
+--                  * Max HP = (Level * 2) + 16 (8 bits: 0..255)
+--                  * Base DMG = (Level / 2) + 2 (8 bits: 0..255)
 --                  * Elemental: Advantage x2, Neutral x1, Disadvantage /2
 --                  * Capture: HP <= 25% of Max HP (or <= 4)
 --------------------------------------------------------------------------------
@@ -55,15 +55,15 @@ ENTITY GameLogic_FSM IS
 
         -- Player Monster Status Outputs (Top-Left HUD)
         player_type_out : OUT STD_LOGIC_VECTOR(1 DOWNTO 0); -- 00: Fire, 01: Plant, 10: Water
-        player_lvl_out  : OUT STD_LOGIC_VECTOR(5 DOWNTO 0); -- Current Level
-        player_hp_out   : OUT STD_LOGIC_VECTOR(5 DOWNTO 0); -- Current HP
-        player_max_hp_o : OUT STD_LOGIC_VECTOR(5 DOWNTO 0); -- Max HP
+        player_lvl_out  : OUT STD_LOGIC_VECTOR(5 DOWNTO 0); -- Current Level (6 bits: 0..63)
+        player_hp_out   : OUT STD_LOGIC_VECTOR(7 DOWNTO 0); -- Current HP (8 bits: 0..255)
+        player_max_hp_o : OUT STD_LOGIC_VECTOR(7 DOWNTO 0); -- Max HP (8 bits: 0..255)
 
         -- Enemy Monster Status Outputs (Top-Right HUD)
         enemy_type_out  : OUT STD_LOGIC_VECTOR(1 DOWNTO 0); -- Dominant Element
-        enemy_lvl_out   : OUT STD_LOGIC_VECTOR(5 DOWNTO 0); -- Current Level
-        enemy_hp_out    : OUT STD_LOGIC_VECTOR(5 DOWNTO 0); -- Current HP
-        enemy_max_hp_o  : OUT STD_LOGIC_VECTOR(5 DOWNTO 0)  -- Max HP
+        enemy_lvl_out   : OUT STD_LOGIC_VECTOR(5 DOWNTO 0); -- Current Level (6 bits: 0..63)
+        enemy_hp_out    : OUT STD_LOGIC_VECTOR(7 DOWNTO 0); -- Current HP (8 bits: 0..255)
+        enemy_max_hp_o  : OUT STD_LOGIC_VECTOR(7 DOWNTO 0)  -- Max HP (8 bits: 0..255)
     );
 END ENTITY GameLogic_FSM;
 
@@ -104,21 +104,21 @@ ARCHITECTURE Behavioral OF GameLogic_FSM IS
     SIGNAL btn_up_state, btn_down_state, btn_left_state, btn_right_state, btn_enter_state : STD_LOGIC := '0';
     SIGNAL btn_up_prev, btn_down_prev, btn_left_prev, btn_right_prev, btn_enter_prev : STD_LOGIC := '0';
 
-    -- Persistent Monster Inventory (Levels start at 1)
+    -- Persistent Monster Inventory (Levels start at 1, max 63)
     SIGNAL inv_lvl_fire  : unsigned(5 DOWNTO 0) := to_unsigned(1, 6);
     SIGNAL inv_lvl_plant : unsigned(5 DOWNTO 0) := to_unsigned(1, 6);
     SIGNAL inv_lvl_water : unsigned(5 DOWNTO 0) := to_unsigned(1, 6);
 
-    -- Active Battle Registers (Default Level 1 HP = (1*2) + 16 = 18)
+    -- Active Battle Registers (8-bit HP: Default Level 1 HP = (1*2) + 16 = 18)
     SIGNAL p_type   : STD_LOGIC_VECTOR(1 DOWNTO 0) := ELEM_FIRE;
     SIGNAL p_level  : unsigned(5 DOWNTO 0) := to_unsigned(1, 6);
-    SIGNAL p_hp     : unsigned(5 DOWNTO 0) := to_unsigned(18, 6);
-    SIGNAL p_max_hp : unsigned(5 DOWNTO 0) := to_unsigned(18, 6);
+    SIGNAL p_hp     : unsigned(7 DOWNTO 0) := to_unsigned(18, 8);
+    SIGNAL p_max_hp : unsigned(7 DOWNTO 0) := to_unsigned(18, 8);
 
     SIGNAL e_type   : STD_LOGIC_VECTOR(1 DOWNTO 0) := ELEM_PLANT;
     SIGNAL e_level  : unsigned(5 DOWNTO 0) := to_unsigned(1, 6);
-    SIGNAL e_hp     : unsigned(5 DOWNTO 0) := to_unsigned(18, 6);
-    SIGNAL e_max_hp : unsigned(5 DOWNTO 0) := to_unsigned(18, 6);
+    SIGNAL e_hp     : unsigned(7 DOWNTO 0) := to_unsigned(18, 8);
+    SIGNAL e_max_hp : unsigned(7 DOWNTO 0) := to_unsigned(18, 8);
 
     -- Cursor Selection Registers
     SIGNAL mon_select_idx : unsigned(1 DOWNTO 0) := "00"; -- 0: Fire, 1: Plant, 2: Water
@@ -131,7 +131,7 @@ ARCHITECTURE Behavioral OF GameLogic_FSM IS
     SIGNAL timer_done : STD_LOGIC := '0';
 
     ----------------------------------------------------------------------------
-    -- Level-Scaled Damage Calculator Function
+    -- 8-bit Level-Scaled Damage Calculator Function
     -- Base DMG = (Attacker_Level / 2) + 2
     -- Rules:
     --   Advantage    = Base * 2 (Shift left 1)
@@ -144,11 +144,11 @@ ARCHITECTURE Behavioral OF GameLogic_FSM IS
         atk_level     : unsigned(5 DOWNTO 0);
         is_elem_skill : STD_LOGIC
     ) RETURN unsigned IS
-        VARIABLE base_dmg : unsigned(5 DOWNTO 0);
-        VARIABLE dmg      : unsigned(5 DOWNTO 0);
+        VARIABLE base_dmg : unsigned(7 DOWNTO 0);
+        VARIABLE dmg      : unsigned(7 DOWNTO 0);
     BEGIN
-        -- Base DMG scales with level: (atk_level / 2) + 2
-        base_dmg := ("0" & atk_level(5 DOWNTO 1)) + 2;
+        -- Base DMG scales with level: (atk_level / 2) + 2 (8-bit representation)
+        base_dmg := ("000" & atk_level(5 DOWNTO 1)) + 2;
 
         IF is_elem_skill = '0' THEN
             -- Normal Tackle: Flat Base DMG (scaled with Level, neutral to element)
@@ -159,15 +159,15 @@ ARCHITECTURE Behavioral OF GameLogic_FSM IS
                (atk_type = ELEM_PLANT AND def_type = ELEM_WATER) OR
                (atk_type = ELEM_WATER AND def_type = ELEM_FIRE) THEN
                 -- Advantage: Base * 2 (Shift left 1)
-                dmg := base_dmg(4 DOWNTO 0) & '0';
+                dmg := base_dmg(6 DOWNTO 0) & '0';
             ELSIF (atk_type = def_type) THEN
                 -- Neutral: Base * 1
                 dmg := base_dmg;
             ELSE
                 -- Disadvantage: Base / 2 (Shift right 1, minimum 1)
-                dmg := "0" & base_dmg(5 DOWNTO 1);
+                dmg := "0" & base_dmg(7 DOWNTO 1);
                 IF dmg = 0 THEN
-                    dmg := to_unsigned(1, 6);
+                    dmg := to_unsigned(1, 8);
                 END IF;
             END IF;
         END IF;
@@ -288,8 +288,8 @@ BEGIN
     -- 2. State & Datapath Synchronous Process
     ----------------------------------------------------------------------------
     p_fsm_sync : PROCESS (clk, reset)
-        VARIABLE calc_dmg   : unsigned(5 DOWNTO 0);
-        VARIABLE capt_limit : unsigned(5 DOWNTO 0);
+        VARIABLE calc_dmg   : unsigned(7 DOWNTO 0);
+        VARIABLE capt_limit : unsigned(7 DOWNTO 0);
         VARIABLE spawn_lvl  : unsigned(5 DOWNTO 0);
     BEGIN
         IF reset = '1' THEN
@@ -301,21 +301,21 @@ BEGIN
             timer_cnt      <= 0;
             timer_done     <= '0';
 
-            -- Reset Inventory Levels to 1
+            -- Reset Inventory Levels to 1 (Max 63)
             inv_lvl_fire  <= to_unsigned(1, 6);
             inv_lvl_plant <= to_unsigned(1, 6);
             inv_lvl_water <= to_unsigned(1, 6);
 
-            -- Default Level 1 HP = (1*2) + 16 = 18
+            -- Default Level 1 HP = (1*2) + 16 = 18 (8-bit)
             p_type   <= ELEM_FIRE;
             p_level  <= to_unsigned(1, 6);
-            p_hp     <= to_unsigned(18, 6);
-            p_max_hp <= to_unsigned(18, 6);
+            p_hp     <= to_unsigned(18, 8);
+            p_max_hp <= to_unsigned(18, 8);
 
             e_type   <= ELEM_PLANT;
             e_level  <= to_unsigned(1, 6);
-            e_hp     <= to_unsigned(18, 6);
-            e_max_hp <= to_unsigned(18, 6);
+            e_hp     <= to_unsigned(18, 8);
+            e_max_hp <= to_unsigned(18, 8);
 
         ELSIF rising_edge(clk) THEN
 
@@ -356,8 +356,9 @@ BEGIN
 
                 ----------------------------------------------------------------
                 -- ST_SELECT_MON: เลือกมอนสเตอร์ในคลัง (3 ตัวเริ่มต้น Lv 1)
-                -- ปุ่ม ซ้าย (Left) / ขวา (Right) เลื่อนเลือกมอนสเตอร์ (หรือ Up/Down)
+                -- ปุ่ม ซ้าย (Left) / ขวา (Right) เลื่อนเลือกมอนสเตอร์
                 -- ปุ่ม Enter ยืนยัน
+                -- Max HP = (Level * 2) + 16 (8-bit)
                 ----------------------------------------------------------------
                 WHEN ST_SELECT_MON =>
                     IF btn_left_pulse = '1' OR btn_up_pulse = '1' THEN
@@ -379,20 +380,20 @@ BEGIN
                     IF btn_enter_pulse = '1' THEN
                         CASE mon_select_idx IS
                             WHEN "00" =>
-                                p_type <= ELEM_FIRE;
-                                p_level <= inv_lvl_fire;
-                                p_max_hp <= (inv_lvl_fire(4 DOWNTO 0) & '0') + 16;
-                                p_hp <= (inv_lvl_fire(4 DOWNTO 0) & '0') + 16;
+                                p_type   <= ELEM_FIRE;
+                                p_level  <= inv_lvl_fire;
+                                p_max_hp <= ("0" & inv_lvl_fire & '0') + 16;
+                                p_hp     <= ("0" & inv_lvl_fire & '0') + 16;
                             WHEN "01" =>
-                                p_type <= ELEM_PLANT;
-                                p_level <= inv_lvl_plant;
-                                p_max_hp <= (inv_lvl_plant(4 DOWNTO 0) & '0') + 16;
-                                p_hp <= (inv_lvl_plant(4 DOWNTO 0) & '0') + 16;
+                                p_type   <= ELEM_PLANT;
+                                p_level  <= inv_lvl_plant;
+                                p_max_hp <= ("0" & inv_lvl_plant & '0') + 16;
+                                p_hp     <= ("0" & inv_lvl_plant & '0') + 16;
                             WHEN OTHERS =>
-                                p_type <= ELEM_WATER;
-                                p_level <= inv_lvl_water;
-                                p_max_hp <= (inv_lvl_water(4 DOWNTO 0) & '0') + 16;
-                                p_hp <= (inv_lvl_water(4 DOWNTO 0) & '0') + 16;
+                                p_type   <= ELEM_WATER;
+                                p_level  <= inv_lvl_water;
+                                p_max_hp <= ("0" & inv_lvl_water & '0') + 16;
+                                p_hp     <= ("0" & inv_lvl_water & '0') + 16;
                         END CASE;
                         current_state <= ST_CAM_LIVE;
                     END IF;
@@ -420,9 +421,9 @@ BEGIN
                             spawn_lvl := p_level;
                         END IF;
 
-                        e_level <= spawn_lvl;
-                        e_max_hp <= (spawn_lvl(4 DOWNTO 0) & '0') + 16;
-                        e_hp <= (spawn_lvl(4 DOWNTO 0) & '0') + 16;
+                        e_level  <= spawn_lvl;
+                        e_max_hp <= ("0" & spawn_lvl & '0') + 16;
+                        e_hp     <= ("0" & spawn_lvl & '0') + 16;
 
                         current_state <= ST_BATTLE_INTRO;
                     END IF;
@@ -438,7 +439,7 @@ BEGIN
 
                 ----------------------------------------------------------------
                 -- ST_ACTION_MENU: เมนูคำสั่งหลัก (0: ATK, 1: CAPT, 2: RUN)
-                -- ปุ่ม บน/ล่าง (Up/Down) เลื่อนเมนู, ปุ่ม Enter ยืนยัน
+                -- ปุ่ม บน/ล่าง เลื่อนเมนู, ปุ่ม Enter ยืนยัน
                 ----------------------------------------------------------------
                 WHEN ST_ACTION_MENU =>
                     IF btn_up_pulse = '1' OR btn_left_pulse = '1' THEN
@@ -483,7 +484,7 @@ BEGIN
                     END IF;
 
                 ----------------------------------------------------------------
-                -- ST_PLAYER_ATK: ผู้เล่นโจมตี (Level Scaled Damage)
+                -- ST_PLAYER_ATK: ผู้เล่นโจมตี (8-bit Level Scaled Damage)
                 ----------------------------------------------------------------
                 WHEN ST_PLAYER_ATK =>
                     calc_dmg := calc_damage(p_type, e_type, p_level, NOT skill_idx);
@@ -499,7 +500,7 @@ BEGIN
                     END IF;
 
                 ----------------------------------------------------------------
-                -- ST_ENEMY_ATK: ศัตรูโจมตีสวน (Level Scaled Elemental Strike)
+                -- ST_ENEMY_ATK: ศัตรูโจมตีสวน (8-bit Level Scaled Elemental Strike)
                 ----------------------------------------------------------------
                 WHEN ST_ENEMY_ATK =>
                     calc_dmg := calc_damage(e_type, p_type, e_level, '1');
@@ -519,9 +520,9 @@ BEGIN
                 -- เกณฑ์สำเร็จ: เลือดเหลือ <= 25% ของ Max HP (e_max_hp / 4) หรือ <= 4
                 ----------------------------------------------------------------
                 WHEN ST_CAPTURE_TRY =>
-                    capt_limit := "00" & e_max_hp(5 DOWNTO 2); -- Max HP / 4
+                    capt_limit := "00" & e_max_hp(7 DOWNTO 2); -- Max HP / 4
                     IF capt_limit < 4 THEN
-                        capt_limit := to_unsigned(4, 6);
+                        capt_limit := to_unsigned(4, 8);
                     END IF;
 
                     IF timer_done = '1' OR btn_enter_pulse = '1' THEN

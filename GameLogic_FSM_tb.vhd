@@ -1,10 +1,11 @@
 --------------------------------------------------------------------------------
 -- Project    : FPGA Camera-Based Monster Battle System (EDGE Spartan-7)
 -- Module     : GameLogic_FSM_tb.vhd
--- Description: Complete Testbench for GameLogic_FSM (5-Button Interface)
+-- Description: Complete Testbench for GameLogic_FSM (5-Button, 8-bit HP Interface)
 --              - Simulates 50 MHz Master Clock
 --              - Accelerated Simulation Clock Frequency (CLK_FREQ_HZ = 1000)
 --              - Tests 5 Buttons: Up, Down, Left, Right, Enter
+--              - Tests 8-bit HP: player_hp_out, enemy_hp_out (0..255)
 --              - Full Gameplay Scenario:
 --                  1. Power-on Reset
 --                  2. Title Screen -> Start Game (Enter)
@@ -50,13 +51,13 @@ ARCHITECTURE Behavioral OF GameLogic_FSM_tb IS
 
     SIGNAL player_type_out  : STD_LOGIC_VECTOR(1 DOWNTO 0);
     SIGNAL player_lvl_out   : STD_LOGIC_VECTOR(5 DOWNTO 0);
-    SIGNAL player_hp_out    : STD_LOGIC_VECTOR(5 DOWNTO 0);
-    SIGNAL player_max_hp_o  : STD_LOGIC_VECTOR(5 DOWNTO 0);
+    SIGNAL player_hp_out    : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit HP
+    SIGNAL player_max_hp_o  : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit Max HP
 
     SIGNAL enemy_type_out   : STD_LOGIC_VECTOR(1 DOWNTO 0);
     SIGNAL enemy_lvl_out    : STD_LOGIC_VECTOR(5 DOWNTO 0);
-    SIGNAL enemy_hp_out     : STD_LOGIC_VECTOR(5 DOWNTO 0);
-    SIGNAL enemy_max_hp_o   : STD_LOGIC_VECTOR(5 DOWNTO 0);
+    SIGNAL enemy_hp_out     : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit HP
+    SIGNAL enemy_max_hp_o   : STD_LOGIC_VECTOR(7 DOWNTO 0); -- 8-bit Max HP
 
     -- Simulation control flag
     SIGNAL sim_finished     : BOOLEAN := FALSE;
@@ -161,7 +162,7 @@ BEGIN
 
     BEGIN
         REPORT "==================================================";
-        REPORT ">>> STARTING 5-BUTTON GAMELOGIC FSM SIMULATION <<<";
+        REPORT ">>> STARTING 5-BUTTON & 8-BIT HP SIMULATION <<<";
         REPORT "==================================================";
 
         -- Step 1: System Power-on Reset
@@ -192,7 +193,7 @@ BEGIN
         ASSERT state_code_out = "0010" REPORT "Error: Should be in ST_CAM_LIVE (2)" SEVERITY ERROR;
         ASSERT player_type_out = "00" REPORT "Error: Player should be Fire (00)" SEVERITY ERROR;
         ASSERT to_integer(unsigned(player_hp_out)) = 18 REPORT "Error: Player Lv.1 Max HP should be 18" SEVERITY ERROR;
-        REPORT "[PASS] In ST_CAM_LIVE (Opcode 2). Fire Monster selected, HP = 18.";
+        REPORT "[PASS] In ST_CAM_LIVE (Opcode 2). Fire Monster selected, 8-bit HP = 18.";
 
         -- Step 5: Press ENTER as shutter button to capture camera snapshot
         WAIT FOR 1 us;
@@ -214,7 +215,7 @@ BEGIN
         ASSERT enemy_type_out = "01" REPORT "Error: Enemy should be Plant (01)" SEVERITY ERROR;
         ASSERT to_integer(unsigned(enemy_lvl_out)) = 6 REPORT "Error: Enemy Level should be 6" SEVERITY ERROR;
         ASSERT to_integer(unsigned(enemy_hp_out)) = 28 REPORT "Error: Enemy Lv.6 Max HP should be 28" SEVERITY ERROR;
-        REPORT "[PASS] In ST_BATTLE_INTRO (Opcode 4). Wild Plant Enemy Lv.6 spawned with 28 HP!";
+        REPORT "[PASS] In ST_BATTLE_INTRO (Opcode 4). Wild Plant Enemy Lv.6 spawned with 8-bit HP = 28!";
 
         -- Step 7: Skip intro to Action Menu with ENTER
         press_enter;
@@ -235,19 +236,19 @@ BEGIN
         press_enter;
         ASSERT state_code_out = "1000" REPORT "Error: Should be in ST_ENEMY_ATK (8)" SEVERITY ERROR;
         ASSERT to_integer(unsigned(enemy_hp_out)) = 24 REPORT "Error: Enemy HP should decrease from 28 to 24" SEVERITY ERROR;
-        REPORT "[PASS] Enemy HP decreased: 28 -> 24 (-4 DMG Advantage!). Now in ST_ENEMY_ATK (Opcode 8).";
+        REPORT "[PASS] Enemy 8-bit HP decreased: 28 -> 24 (-4 DMG Advantage!). Now in ST_ENEMY_ATK (Opcode 8).";
 
         -- Enemy attacks back (Plant vs Fire = DISADVANTAGE! Base 5 / 2 = 2 DMG)
         press_enter;
         ASSERT state_code_out = "0101" REPORT "Error: Should return to ST_ACTION_MENU (5)" SEVERITY ERROR;
         ASSERT to_integer(unsigned(player_hp_out)) = 16 REPORT "Error: Player HP should decrease from 18 to 16" SEVERITY ERROR;
-        REPORT "[PASS] Player HP decreased: 18 -> 16 (-2 DMG Disadvantage!). Back in ST_ACTION_MENU (Opcode 5).";
+        REPORT "[PASS] Player 8-bit HP decreased: 18 -> 16 (-2 DMG Disadvantage!). Back in ST_ACTION_MENU (Opcode 5).";
 
         -- Step 10: Test Run Away (Evade)
         -- Move cursor down to CAPT, then to RUN (cursor = 10) using DOWN button
         press_down; -- Cursor to CAPT ("01")
         WAIT FOR 200 ns;
-        press_down; -- Cursor to RUN ("10") 
+        press_down; -- Cursor to RUN ("10")
         WAIT FOR 200 ns;
 
         -- Confirm RUN with ENTER
@@ -262,7 +263,7 @@ BEGIN
 
         WAIT FOR 1 us;
         REPORT "==================================================";
-        REPORT ">>> ALL TESTS PASSED! 5-BUTTON SIMULATION SUCCESSFUL! <<<";
+        REPORT ">>> ALL TESTS PASSED! 8-BIT HP SIMULATION SUCCESSFUL! <<<";
         REPORT "==================================================";
 
         sim_finished <= TRUE;
