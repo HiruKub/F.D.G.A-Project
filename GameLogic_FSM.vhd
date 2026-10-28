@@ -41,10 +41,11 @@ ENTITY GameLogic_FSM IS
         ------------------------------------------------------------------------
         -- Interface to FPGA 1 (VGA Compositor & HUD Renderer)
         ------------------------------------------------------------------------
-        -- Scene State Code:
-        -- 0000: Title, 0001: Select Mon, 0010: Camera Scan, 0011: Intro,
-        -- 0100: Action Menu, 0101: Skill Menu, 0110: Player Atk, 0111: Enemy Atk,
-        -- 1000: Capture Try, 1001: Run Evade, 1010: Victory, 1011: Defeat
+        -- Scene State Code (Opcode 4-bit):
+        -- 0000: Title, 0001: Select Mon, 0010: Camera, 0011: Capture Cam,
+        -- 0100: Prepare, 0101: Action Menu, 0110: Skill Menu, 0111: Player Atk,
+        -- 1000: Enemy Atk, 1001: Capt Monster, 1010: Evade, 1011: Victory,
+        -- 1100: Loss, 1101: VictoryCap
         state_code_out : OUT STD_LOGIC_VECTOR(3 DOWNTO 0);
 
         -- Cursor / Selection Indices for VGA Box rendering
@@ -95,20 +96,20 @@ ARCHITECTURE Behavioral OF GameLogic_FSM IS
     -- FSM State Definitions
     TYPE state_type IS (
         ST_INIT,
-        ST_TITLE, -- หน้าแรก (Title Screen)
-        ST_SELECT_MON, -- ฉากเลือกมอนสเตอร์ในคลัง (3 ตัวเริ่มต้น Lv 1)
-        ST_WAIT_CAM, -- รอรับข้อมูลภาพจาก FPGA 1
-        ST_SPAWN_CALC, -- คำนวณชนิดและเลเวลศัตรู
-        ST_BATTLE_INTRO, -- ฉากเปิดตัวศัตรู
-        ST_ACTION_MENU, -- เมนูเลือกคำสั่งหลัก (0: ATK, 1: CAPT, 2: RUN)
-        ST_SKILL_MENU, -- เมนูเลือกสกิล (0: Elemental, 1: Normal)
-        ST_PLAYER_ATK, -- ผู้เล่นโจมตี (คิดดาเมจ ชนะ x2 / เสมอ x1 / แพ้ /2 ตามสเกลเลเวล)
-        ST_ENEMY_ATK, -- ศัตรูโจมตีสวน
-        ST_CAPTURE_TRY, -- ตรวจสอบเงื่อนไขจับมอนสเตอร์ (HP <= 25% of Max HP)
-        ST_RUN_ESCAPE, -- หลบหนีออกจากการต่อสู้
-        ST_VICTORYKO, -- ได้รับชัยชนะ
-        ST_VICTORYCAP,
-        ST_DEFEAT -- พ่ายแพ้
+        ST_TITLE,        -- 0: หน้าแรก (Title Screen)
+        ST_SELECT_MON,   -- 1: ฉากเลือกมอนสเตอร์ในคลัง (3 ตัวเริ่มต้น Lv 1)
+        ST_CAM_LIVE,     -- 2: ส่องกล้องดูภาพสด (Live Camera Feed)
+        ST_CAM_CAPTURE,  -- 3: แช่ภาพนิ่ง (Snapshot Freeze) และรอผลสแกนสี
+        ST_BATTLE_INTRO, -- 4: ฉากเปิดตัวศัตรู (Prepare / Wild Monster Appeared)
+        ST_ACTION_MENU,  -- 5: เมนูคำสั่งหลัก (0: ATK, 1: CAPT, 2: RUN)
+        ST_SKILL_MENU,   -- 6: เมนูเลือกสกิล (0: Elemental, 1: Normal)
+        ST_PLAYER_ATK,   -- 7: ผู้เล่นโจมตี (คิดดาเมจ ชนะ x2 / เสมอ x1 / แพ้ /2)
+        ST_ENEMY_ATK,    -- 8: ศัตรูโจมตีสวน
+        ST_CAPTURE_TRY,  -- 9: ตรวจสอบเงื่อนไขจับมอนสเตอร์ (HP <= 25% of Max HP)
+        ST_RUN_ESCAPE,   -- 10: หลบหนีออกจากการต่อสู้ (Evade)
+        ST_VICTORYKO,    -- 11: ได้รับชัยชนะเพราะตีตาย (Victory)
+        ST_DEFEAT,       -- 12: พ่ายแพ้ (Loss)
+        ST_VICTORYCAP    -- 13: ได้รับชัยชนะเพราะจับสำเร็จ (VictoryCap)
     );
 
     SIGNAL current_state : state_type := ST_INIT;
@@ -369,39 +370,38 @@ BEGIN
                                 p_max_hp <= (inv_lvl_water(4 DOWNTO 0) & '0') + 16;
                                 p_hp <= (inv_lvl_water(4 DOWNTO 0) & '0') + 16;
                         END CASE;
-                        current_state <= ST_WAIT_CAM;
+                        current_state <= ST_CAM_LIVE;
                     END IF;
 
                     ----------------------------------------------------------------
-                    -- ST_WAIT_CAM: รอสัญญาณสแกนภาพจาก FPGA 1
+                    -- ST_CAM_LIVE (Opcode 2): ส่องกล้องดูภาพสด รอกดชัตเตอร์ (BTN3)
                     ----------------------------------------------------------------
-                WHEN ST_WAIT_CAM =>
+                WHEN ST_CAM_LIVE =>
+                    IF btn3_pulse = '1' THEN
+                        current_state <= ST_CAM_CAPTURE;
+                    END IF;
+
+                    ----------------------------------------------------------------
+                    -- ST_CAM_CAPTURE (Opcode 3): แช่ภาพนิ่ง รอ FPGA 1 ประมวลผลเสร็จ
+                    ----------------------------------------------------------------
+                WHEN ST_CAM_CAPTURE =>
                     IF cam_data_ready = '1' THEN
-                        current_state <= ST_SPAWN_CALC;
+                        -- ชนิดศัตรู: รับตรงจาก FPGA 1 (2 บิต: 00=Fire, 01=Plant, 10=Water)
+                        e_type <= enemy_type_in;
+
+                        -- เลเวลศัตรู: รับบิต LSB สีที่ 2 จาก FPGA 1 ('0' = เท่าเรา, '1' = เรา + 5)
+                        IF enemy_lvl_lsb_in = '1' THEN
+                            spawn_lvl := p_level + 5;
+                        ELSE
+                            spawn_lvl := p_level;
+                        END IF;
+
+                        e_level <= spawn_lvl;
+                        e_max_hp <= (spawn_lvl(4 DOWNTO 0) & '0') + 16;
+                        e_hp <= (spawn_lvl(4 DOWNTO 0) & '0') + 16;
+
+                        current_state <= ST_BATTLE_INTRO;
                     END IF;
-
-                    ----------------------------------------------------------------
-                    -- ST_SPAWN_CALC: คำนวณชนิดและเลเวลศัตรู
-                    -- ชนิด เกิดจาก สีที่มากที่สุดอันดับ 1 (RGB332)
-                    -- เลเวล เกิดจาก สีอันดับ 2 บิตสุดท้าย (0 = เท่าเรา, 1 = เรา + 5)
-                    -- Max HP = (Level * 2) + 16
-                    ----------------------------------------------------------------
-                WHEN ST_SPAWN_CALC =>
-                    -- ชนิดศัตรู: รับตรงจาก FPGA 1 (2 บิต: 00=Fire, 01=Plant, 10=Water)
-                    e_type <= enemy_type_in;
-
-                    -- เลเวลศัตรู: รับบิต LSB สีที่ 2 จาก FPGA 1 ('0' = เท่าเรา, '1' = เรา + 5)
-                    IF enemy_lvl_lsb_in = '1' THEN
-                        spawn_lvl := p_level + 5;
-                    ELSE
-                        spawn_lvl := p_level;
-                    END IF;
-
-                    e_level <= spawn_lvl;
-                    e_max_hp <= (spawn_lvl(4 DOWNTO 0) & '0') + 16;
-                    e_hp <= (spawn_lvl(4 DOWNTO 0) & '0') + 16;
-
-                    current_state <= ST_BATTLE_INTRO;
 
                     ----------------------------------------------------------------
                     -- ST_BATTLE_INTRO: เปิดตัวศัตรู
@@ -556,20 +556,20 @@ BEGIN
     PROCESS (current_state)
     BEGIN
         CASE current_state IS
-            WHEN ST_TITLE => state_code_out <= "0000";
-            WHEN ST_SELECT_MON => state_code_out <= "0001";
-            WHEN ST_WAIT_CAM => state_code_out <= "0010";
-            WHEN ST_SPAWN_CALC => state_code_out <= "0010";
-            WHEN ST_BATTLE_INTRO => state_code_out <= "0011";
-            WHEN ST_ACTION_MENU => state_code_out <= "0100";
-            WHEN ST_SKILL_MENU => state_code_out <= "0101";
-            WHEN ST_PLAYER_ATK => state_code_out <= "0110";
-            WHEN ST_ENEMY_ATK => state_code_out <= "0111";
-            WHEN ST_CAPTURE_TRY => state_code_out <= "1000";
-            WHEN ST_RUN_ESCAPE => state_code_out <= "1001";
-            WHEN ST_VICTORYKO => state_code_out <= "1010";
-            WHEN ST_DEFEAT => state_code_out <= "1011";
-            WHEN ST_VICTORYCAP => state_code_out <= "1100";
+            WHEN ST_TITLE => state_code_out <= "0000";       -- 0: Title
+            WHEN ST_SELECT_MON => state_code_out <= "0001";  -- 1: select char
+            WHEN ST_CAM_LIVE => state_code_out <= "0010";    -- 2: camera
+            WHEN ST_CAM_CAPTURE => state_code_out <= "0011"; -- 3: capture
+            WHEN ST_BATTLE_INTRO => state_code_out <= "0100";-- 4: prepare
+            WHEN ST_ACTION_MENU => state_code_out <= "0101"; -- 5: action
+            WHEN ST_SKILL_MENU => state_code_out <= "0110";  -- 6: skill menu
+            WHEN ST_PLAYER_ATK => state_code_out <= "0111";  -- 7: ATK
+            WHEN ST_ENEMY_ATK => state_code_out <= "1000";   -- 8: E ATK
+            WHEN ST_CAPTURE_TRY => state_code_out <= "1001"; -- 9: Capt
+            WHEN ST_RUN_ESCAPE => state_code_out <= "1010";  -- 10: Evade
+            WHEN ST_VICTORYKO => state_code_out <= "1011";   -- 11: Victory
+            WHEN ST_DEFEAT => state_code_out <= "1100";      -- 12: Loss
+            WHEN ST_VICTORYCAP => state_code_out <= "1101";  -- 13: VictoryCap
             WHEN OTHERS => state_code_out <= "0000";
         END CASE;
     END PROCESS;
