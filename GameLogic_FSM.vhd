@@ -134,7 +134,7 @@ ARCHITECTURE Behavioral OF GameLogic_FSM IS
     -- Cursor Selection Registers
     SIGNAL mon_select_idx : unsigned(1 DOWNTO 0) := "00"; -- 0: Fire, 1: Plant, 2: Water
     SIGNAL menu_idx : unsigned(1 DOWNTO 0) := "00"; -- 0: ATK, 1: CAPT, 2: RUN
-    SIGNAL skill_idx : STD_LOGIC := '0'; -- 0: Elemental Strike, 1: Normal Tackle
+    SIGNAL skill_idx : STD_LOGIC := '0'; -- 0: Normal Tackle, 1: Elemental Strike
 
     -- Timer for Animations/Pauses/Snapshot (1.5 seconds @ CLK_FREQ_HZ)
     CONSTANT TIMER_1_5_SEC : INTEGER := (CLK_FREQ_HZ * 3) / 2;
@@ -472,19 +472,43 @@ BEGIN
                     -- ปุ่ม บน/ล่าง เลื่อนเมนู, ปุ่ม Enter ยืนยัน
                     ----------------------------------------------------------------
                 WHEN ST_ACTION_MENU =>
-                    IF btn_up_pulse = '1' OR btn_left_pulse = '1' THEN
-                        IF menu_idx = "00" THEN
-                            menu_idx <= "10";
-                        ELSE
-                            menu_idx <= menu_idx - 1;
-                        END IF;
-                    ELSIF btn_down_pulse = '1' OR btn_right_pulse = '1' THEN
-                        IF menu_idx = "10" THEN
-                            menu_idx <= "00";
-                        ELSE
-                            menu_idx <= menu_idx + 1;
-                        END IF;
-                    END IF;
+                    -- 2D Grid Menu Navigation:
+                    -- Top Row   : [ATK ("00")]   [CAPT ("01")]
+                    -- Bottom Row: [RUN ("10")]
+                    CASE menu_idx IS
+                        WHEN "00" => -- ATK (Top-Left)
+                            IF btn_right_pulse = '1' THEN
+                                menu_idx <= "01"; -- ขวา ไป CAPT
+                            ELSIF btn_down_pulse = '1' THEN
+                                menu_idx <= "10"; -- ล่าง ไป RUN (ใต้ ATK)
+                            ELSIF btn_left_pulse = '1' THEN
+                                menu_idx <= "01"; -- ซ้าย วนไป CAPT
+                            ELSIF btn_up_pulse = '1' THEN
+                                menu_idx <= "10"; -- บน วนไป RUN
+                            END IF;
+
+                        WHEN "01" => -- CAPT (Top-Right)
+                            IF btn_left_pulse = '1' THEN
+                                menu_idx <= "00"; -- ซ้าย ไป ATK
+                            ELSIF btn_down_pulse = '1' THEN
+                                menu_idx <= "10"; -- ล่าง ไป RUN
+                            ELSIF btn_right_pulse = '1' THEN
+                                menu_idx <= "00"; -- ขวา วนไป ATK
+                            ELSIF btn_up_pulse = '1' THEN
+                                menu_idx <= "10"; -- บน วนไป RUN
+                            END IF;
+
+                        WHEN OTHERS => -- RUN ("10", Bottom-Left)
+                            IF btn_up_pulse = '1' THEN
+                                menu_idx <= "00"; -- บน ไป ATK (บน RUN)
+                            ELSIF btn_right_pulse = '1' THEN
+                                menu_idx <= "01"; -- ขวา ไป CAPT
+                            ELSIF btn_down_pulse = '1' THEN
+                                menu_idx <= "00"; -- ล่าง วนไป ATK
+                            ELSIF btn_left_pulse = '1' THEN
+                                menu_idx <= "01"; -- ซ้าย วนไป CAPT
+                            END IF;
+                    END CASE;
                     cursor_out <= STD_LOGIC_VECTOR(menu_idx);
 
                     IF btn_enter_pulse = '1' THEN
@@ -500,7 +524,7 @@ BEGIN
                     END IF;
 
                     ----------------------------------------------------------------
-                    -- ST_SKILL_MENU: เลือกสกิล (0: Elemental Strike, 1: Normal Tackle)
+                    -- ST_SKILL_MENU: เลือกสกิล (0: Normal Tackle, 1: Elemental Strike)
                     -- ปุ่ม บน/ล่าง สลับสกิล, ปุ่ม Enter โจมตี
                     ----------------------------------------------------------------
                 WHEN ST_SKILL_MENU =>
@@ -517,8 +541,8 @@ BEGIN
                     -- ST_PLAYER_ATK: ผู้เล่นโจมตี (8-bit Level Scaled Damage)
                     ----------------------------------------------------------------
                 WHEN ST_PLAYER_ATK =>
-                    calc_dmg := calc_damage(p_type, e_type, p_level, NOT skill_idx);
-
+                    calc_dmg := calc_damage(p_type, e_type, p_level, skill_idx);
+                    cursor_out <= "0" & skill_idx;
                     IF timer_done = '1' OR btn_enter_pulse = '1' THEN
                         IF e_hp <= calc_dmg THEN
                             e_hp <= (OTHERS => '0');
@@ -542,6 +566,7 @@ BEGIN
                         ELSE
                             p_hp <= p_hp - calc_dmg;
                             current_state <= ST_ACTION_MENU;
+                            menu_idx <= "00";
                         END IF;
                     END IF;
 

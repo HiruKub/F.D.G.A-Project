@@ -247,7 +247,14 @@ BEGIN
         -- Step 8: Select ATK (Cursor = 00) and press ENTER
         press_enter;
         ASSERT state_code_out = "0110" REPORT "Error: Should be in ST_SKILL_MENU (6)" SEVERITY ERROR;
-        REPORT "[PASS] In ST_SKILL_MENU (Opcode 6). Default Skill 1: Elemental Strike.";
+        ASSERT cursor_out = "00" REPORT "Error: Default should be Skill 0: Normal Tackle" SEVERITY ERROR;
+        REPORT "[PASS] In ST_SKILL_MENU (Opcode 6). Default Skill 0: Normal Tackle.";
+
+        -- Switch to Skill 1: Elemental Strike (Fire Strike)
+        press_down;
+        WAIT FOR 200 ns;
+        ASSERT cursor_out = "01" REPORT "Error: Should switch to Skill 1: Elemental Strike" SEVERITY ERROR;
+        REPORT "[PASS] Switched to Skill 1: Elemental Strike.";
 
         -- Step 9: Execute Skill 1 (Fire vs Plant = ADVANTAGE! Base 2 * 2 = 4 DMG) with ENTER
         press_enter;
@@ -266,12 +273,22 @@ BEGIN
         ASSERT to_integer(unsigned(player_hp_out)) = 16 REPORT "Error: Player HP should decrease from 18 to 16" SEVERITY ERROR;
         REPORT "[PASS] Player 8-bit HP decreased: 18 -> 16 (-2 DMG Disadvantage!). Back in ST_ACTION_MENU (Opcode 5).";
 
-        -- Step 10: Test Run Away (Evade)
-        -- Move cursor down to CAPT, then to RUN (cursor = 10) using DOWN button
-        press_down; -- Cursor to CAPT ("01")
+        -- Step 10: Test 2D Navigation in Action Menu & Run Away (Evade)
+        -- Currently at ATK ("00"). Test Right to CAPT ("01"), Left back to ATK ("00"), Down to RUN ("10")
+        press_right; -- Move Right to CAPT ("01")
         WAIT FOR 200 ns;
-        press_down; -- Cursor to RUN ("10")
+        ASSERT cursor_out = "01" REPORT "Error: Cursor should be CAPT (01)" SEVERITY ERROR;
+        REPORT "[PASS] 2D Menu: Moved Right to CAPT (01).";
+
+        press_left;  -- Move Left back to ATK ("00")
         WAIT FOR 200 ns;
+        ASSERT cursor_out = "00" REPORT "Error: Cursor should return to ATK (00)" SEVERITY ERROR;
+        REPORT "[PASS] 2D Menu: Moved Left back to ATK (00).";
+
+        press_down;  -- Move Down to RUN ("10", below ATK)
+        WAIT FOR 200 ns;
+        ASSERT cursor_out = "10" REPORT "Error: Cursor should be RUN (10)" SEVERITY ERROR;
+        REPORT "[PASS] 2D Menu: Moved Down to RUN (10).";
 
         -- Confirm RUN with ENTER
         press_enter;
