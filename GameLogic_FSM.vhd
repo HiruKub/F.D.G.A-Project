@@ -602,6 +602,27 @@ BEGIN
                     IF timer_done = '1' OR btn_enter_pulse = '1' THEN
                         IF p_hp <= calc_dmg THEN
                             p_hp <= (OTHERS => '0');
+
+                            -- ลด Level ในคลังลง 1 เมื่อพ่ายแพ้ (ขั้นต่ำ Level 1)
+                            CASE p_type IS
+                                WHEN ELEM_FIRE =>
+                                    IF inv_lvl_fire > 1 THEN
+                                        inv_lvl_fire <= inv_lvl_fire - 1;
+                                    END IF;
+                                WHEN ELEM_PLANT =>
+                                    IF inv_lvl_plant > 1 THEN
+                                        inv_lvl_plant <= inv_lvl_plant - 1;
+                                    END IF;
+                                WHEN OTHERS => -- ELEM_WATER
+                                    IF inv_lvl_water > 1 THEN
+                                        inv_lvl_water <= inv_lvl_water - 1;
+                                    END IF;
+                            END CASE;
+
+                            IF p_level > 1 THEN
+                                p_level <= p_level - 1;
+                            END IF;
+
                             current_state <= ST_DEFEAT;
                         ELSE
                             p_hp <= p_hp - calc_dmg;
@@ -627,14 +648,21 @@ BEGIN
                                 WHEN ELEM_FIRE =>
                                     IF e_level > inv_lvl_fire THEN
                                         inv_lvl_fire <= e_level;
+                                    ELSE
+                                        inv_lvl_fire <= inv_lvl_fire + 1;
                                     END IF;
+
                                 WHEN ELEM_PLANT =>
                                     IF e_level > inv_lvl_plant THEN
                                         inv_lvl_plant <= e_level;
+                                    ELSE
+                                        inv_lvl_plant <= inv_lvl_plant + 1;
                                     END IF;
                                 WHEN OTHERS =>
                                     IF e_level > inv_lvl_water THEN
                                         inv_lvl_water <= e_level;
+                                    ELSE
+                                        inv_lvl_water <= inv_lvl_water + 1;
                                     END IF;
                             END CASE;
                             current_state <= ST_VICTORYCAP;
