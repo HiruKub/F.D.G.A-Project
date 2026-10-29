@@ -1,16 +1,3 @@
--- ============================================================================
--- link5_pkg.vhd : frame format agreed by the team (SPEC v1, 5 bytes) + test data
---
--- STATE frame FPGA2 -> FPGA1  (34 payload bits, sent MSB first, padded to 40 bits)
---   opcode(4) | mon_player(2) | lvl_player(6) | hp_player(8) |
---   mon_enemy(2) | lvl_enemy(6) | hp_enemy(8) | cursor(2) | pad(2)=00
---   byte 0 = bits 39..32, byte 1 = 31..24, byte 2 = 23..16, byte 3 = 15..8, byte 4 = 7..0
---
--- STATUS FPGA1 -> FPGA2 (5 bits, returned in the FIRST byte of the same transaction)
---   000 | colour1(2) | colour2(2) | LV(1)
---
--- Both test tops use test_fields()/status_byte() from here, so they always agree.
--- ============================================================================
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
