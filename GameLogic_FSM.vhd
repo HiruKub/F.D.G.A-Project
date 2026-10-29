@@ -141,6 +141,8 @@ ARCHITECTURE Behavioral OF GameLogic_FSM IS
     SIGNAL timer_cnt : INTEGER RANGE 0 TO TIMER_1_5_SEC := 0;
     SIGNAL timer_done : STD_LOGIC := '0';
 
+    -- Prev state
+    SIGNAL prev_state : state_type := ST_INIT;
     ----------------------------------------------------------------------------
     -- 8-bit Level-Scaled Damage Calculator Function
     -- Base DMG = (Attacker_Level / 2) + 2
@@ -305,6 +307,7 @@ BEGIN
     BEGIN
         IF reset = '1' THEN
             current_state <= ST_INIT;
+            prev_state <= ST_INIT;
             mon_select_idx <= "00";
             cursor_out <= "00";
             menu_idx <= "00";
@@ -329,9 +332,12 @@ BEGIN
             e_max_hp <= to_unsigned(18, 8);
 
         ELSIF rising_edge(clk) THEN
-
-            -- Animation, Pause & Snapshot Delay Timer
-            IF current_state = ST_CAM_CAPTURE OR
+            prev_state <= current_state;
+            IF current_state /= prev_state THEN
+                timer_cnt <= 0;
+                timer_done <= '0';
+                -- Animation, Pause & Snapshot Delay Timer
+            ELSIF current_state = ST_CAM_CAPTURE OR
                 current_state = ST_BATTLE_INTRO OR
                 current_state = ST_PLAYER_ATK OR
                 current_state = ST_ENEMY_ATK OR
@@ -353,7 +359,6 @@ BEGIN
 
             -- State Transitions & Game Logic
             CASE current_state IS
-
                 WHEN ST_INIT =>
                     current_state <= ST_TITLE;
 
@@ -428,15 +433,20 @@ BEGIN
                 WHEN ST_CAM_CAPTURE =>
                     IF timer_done = '1' THEN
                         -- ชนิดศัตรู: รับตรงจาก FPGA 1 (2 บิต: 00=Fire, 01=Plant, 10=Water)
-                        e_type <= enemy_type_in;
+                        CASE enemy_type_in IS
+                            WHEN ELEM_FIRE => e_type <= ELEM_FIRE;
+                            WHEN ELEM_PLANT => e_type <= ELEM_PLANT;
+                            WHEN ELEM_WATER => e_type <= ELEM_WATER;
+                            WHEN OTHERS => e_type <= ELEM_FIRE;
+                        END CASE;
 
                         -- เลเวลศัตรู: รับบิต LSB สีที่ 2 จาก FPGA 1 ('0' = เท่าเรา, '1' = เรา + 5)
                         IF enemy_lvl_lsb_in = '1' THEN
-                            if p_level > 58 then
-                                spawn_lvl := to_unsigned(63,6);
-                            else
+                            IF p_level > 58 THEN
+                                spawn_lvl := to_unsigned(63, 6);
+                            ELSE
                                 spawn_lvl := p_level + 5;
-                            end if;
+                            END IF;
                         ELSE
                             spawn_lvl := p_level;
                         END IF;
