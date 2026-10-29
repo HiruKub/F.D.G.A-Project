@@ -187,6 +187,29 @@ ARCHITECTURE Behavioral OF GameLogic_FSM IS
         RETURN dmg;
     END FUNCTION;
 
+    ----------------------------------------------------------------------------
+    -- 8-bit Normalized HP Mapping Function (Scale to 0..255)
+    -- Formula: (current_hp * 255) / max_hp
+    -- Ensures full health bar = 255 pixels for FPGA 1 VGA renderer
+    ----------------------------------------------------------------------------
+    FUNCTION map_hp_255(
+        cur_hp : unsigned(7 DOWNTO 0);
+        max_hp : unsigned(7 DOWNTO 0)
+    ) RETURN STD_LOGIC_VECTOR IS
+        VARIABLE temp : unsigned(15 DOWNTO 0);
+        VARIABLE res : unsigned(15 DOWNTO 0);
+    BEGIN
+        IF cur_hp = 0 OR max_hp = 0 THEN
+            RETURN x"00";
+        ELSIF cur_hp >= max_hp THEN
+            RETURN x"FF";
+        ELSE
+            temp := cur_hp * to_unsigned(255, 8);
+            res := temp / max_hp;
+            RETURN STD_LOGIC_VECTOR(res(7 DOWNTO 0));
+        END IF;
+    END FUNCTION;
+
 BEGIN
 
     ----------------------------------------------------------------------------
@@ -632,16 +655,16 @@ BEGIN
     -- 3. Output Assignment Process (Combinational Mapping for FPGA 1)
     ----------------------------------------------------------------------------
 
-    -- Monster Status
+    -- Monster Status (HP mapped to full-scale 0..255 for FPGA 1 VGA bar)
     player_type_out <= p_type;
     player_lvl_out <= STD_LOGIC_VECTOR(p_level);
-    player_hp_out <= STD_LOGIC_VECTOR(p_hp);
-    player_max_hp_o <= STD_LOGIC_VECTOR(p_max_hp);
+    player_hp_out <= map_hp_255(p_hp, p_max_hp);
+    player_max_hp_o <= x"FF"; -- Always 255 for full-scale health bar
 
     enemy_type_out <= e_type;
     enemy_lvl_out <= STD_LOGIC_VECTOR(e_level);
-    enemy_hp_out <= STD_LOGIC_VECTOR(e_hp);
-    enemy_max_hp_o <= STD_LOGIC_VECTOR(e_max_hp);
+    enemy_hp_out <= map_hp_255(e_hp, e_max_hp);
+    enemy_max_hp_o <= x"FF"; -- Always 255 for full-scale health bar
 
     -- State Code for VGA Scene Compositor (Opcode 4-bit)
     PROCESS (current_state)

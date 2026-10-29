@@ -187,15 +187,15 @@ BEGIN
         WAIT FOR 200 ns;
         ASSERT player_type_out = "01" REPORT "Error: Preview should show Plant (01)" SEVERITY ERROR;
         ASSERT to_integer(unsigned(player_lvl_out)) = 1 REPORT "Error: Plant Level should be 1" SEVERITY ERROR;
-        ASSERT to_integer(unsigned(player_max_hp_o)) = 18 REPORT "Error: Plant Max HP should be 18" SEVERITY ERROR;
-        REPORT "[PASS] Real-time preview: Plant (01), Lv 1, Max HP 18.";
+        ASSERT to_integer(unsigned(player_max_hp_o)) = 255 REPORT "Error: Plant Max HP should be mapped to 255" SEVERITY ERROR;
+        REPORT "[PASS] Real-time preview: Plant (01), Lv 1, Max HP 255 (Full Scale).";
 
         press_right; -- Next monster (Water, cursor = 10)
         WAIT FOR 200 ns;
         ASSERT player_type_out = "10" REPORT "Error: Preview should show Water (10)" SEVERITY ERROR;
         ASSERT to_integer(unsigned(player_lvl_out)) = 1 REPORT "Error: Water Level should be 1" SEVERITY ERROR;
-        ASSERT to_integer(unsigned(player_max_hp_o)) = 18 REPORT "Error: Water Max HP should be 18" SEVERITY ERROR;
-        REPORT "[PASS] Real-time preview: Water (10), Lv 1, Max HP 18.";
+        ASSERT to_integer(unsigned(player_max_hp_o)) = 255 REPORT "Error: Water Max HP should be mapped to 255" SEVERITY ERROR;
+        REPORT "[PASS] Real-time preview: Water (10), Lv 1, Max HP 255 (Full Scale).";
 
         press_left;  -- Previous monster (Plant, cursor = 01)
         WAIT FOR 200 ns;
@@ -203,15 +203,15 @@ BEGIN
         WAIT FOR 200 ns;
         ASSERT player_type_out = "00" REPORT "Error: Preview should show Fire (00)" SEVERITY ERROR;
         ASSERT to_integer(unsigned(player_lvl_out)) = 1 REPORT "Error: Fire Level should be 1" SEVERITY ERROR;
-        ASSERT to_integer(unsigned(player_max_hp_o)) = 18 REPORT "Error: Fire Max HP should be 18" SEVERITY ERROR;
-        REPORT "[PASS] Real-time preview: Fire (00), Lv 1, Max HP 18.";
+        ASSERT to_integer(unsigned(player_max_hp_o)) = 255 REPORT "Error: Fire Max HP should be mapped to 255" SEVERITY ERROR;
+        REPORT "[PASS] Real-time preview: Fire (00), Lv 1, Max HP 255 (Full Scale).";
 
         -- Step 4: Confirm Select Fire Monster with ENTER
         press_enter;
         ASSERT state_code_out = "0010" REPORT "Error: Should be in ST_CAM_LIVE (2)" SEVERITY ERROR;
         ASSERT player_type_out = "00" REPORT "Error: Player should be Fire (00)" SEVERITY ERROR;
-        ASSERT to_integer(unsigned(player_hp_out)) = 18 REPORT "Error: Player Lv.1 Max HP should be 18" SEVERITY ERROR;
-        REPORT "[PASS] In ST_CAM_LIVE (Opcode 2). Fire Monster selected, 8-bit HP = 18.";
+        ASSERT to_integer(unsigned(player_hp_out)) = 255 REPORT "Error: Player Lv.1 Max HP should be 255 (Full Scale)" SEVERITY ERROR;
+        REPORT "[PASS] In ST_CAM_LIVE (Opcode 2). Fire Monster selected, Full HP = 255.";
 
         -- Step 5: Press ENTER as shutter button to capture camera snapshot
         WAIT FOR 1 us;
@@ -236,8 +236,8 @@ BEGIN
         ASSERT state_code_out = "0100" REPORT "Error: Should be in ST_BATTLE_INTRO (4)" SEVERITY ERROR;
         ASSERT enemy_type_out = "01" REPORT "Error: Enemy should be Plant (01)" SEVERITY ERROR;
         ASSERT to_integer(unsigned(enemy_lvl_out)) = 6 REPORT "Error: Enemy Level should be 6" SEVERITY ERROR;
-        ASSERT to_integer(unsigned(enemy_hp_out)) = 28 REPORT "Error: Enemy Lv.6 Max HP should be 28" SEVERITY ERROR;
-        REPORT "[PASS] In ST_BATTLE_INTRO (Opcode 4). Auto-Timer completed. Wild Plant Enemy Lv.6 spawned with 8-bit HP = 28!";
+        ASSERT to_integer(unsigned(enemy_hp_out)) = 255 REPORT "Error: Enemy Full HP should be mapped to 255" SEVERITY ERROR;
+        REPORT "[PASS] In ST_BATTLE_INTRO (Opcode 4). Auto-Timer completed. Wild Plant Enemy Lv.6 spawned with Full HP = 255!";
 
         -- Step 7: Skip intro to Action Menu with ENTER
         press_enter;
@@ -264,14 +264,14 @@ BEGIN
         -- Confirm / animate player attack -> transitions to enemy attack
         press_enter;
         ASSERT state_code_out = "1000" REPORT "Error: Should be in ST_ENEMY_ATK (8)" SEVERITY ERROR;
-        ASSERT to_integer(unsigned(enemy_hp_out)) = 24 REPORT "Error: Enemy HP should decrease from 28 to 24" SEVERITY ERROR;
-        REPORT "[PASS] Enemy 8-bit HP decreased: 28 -> 24 (-4 DMG Advantage!). Now in ST_ENEMY_ATK (Opcode 8).";
+        ASSERT to_integer(unsigned(enemy_hp_out)) = 218 REPORT "Error: Enemy HP should decrease to 218 (24/28 * 255)" SEVERITY ERROR;
+        REPORT "[PASS] Enemy HP decreased: 255 -> 218 (-4 DMG Advantage!). Now in ST_ENEMY_ATK (Opcode 8).";
 
         -- Enemy attacks back (Plant vs Fire = DISADVANTAGE! Base 5 / 2 = 2 DMG)
         press_enter;
         ASSERT state_code_out = "0101" REPORT "Error: Should return to ST_ACTION_MENU (5)" SEVERITY ERROR;
-        ASSERT to_integer(unsigned(player_hp_out)) = 16 REPORT "Error: Player HP should decrease from 18 to 16" SEVERITY ERROR;
-        REPORT "[PASS] Player 8-bit HP decreased: 18 -> 16 (-2 DMG Disadvantage!). Back in ST_ACTION_MENU (Opcode 5).";
+        ASSERT to_integer(unsigned(player_hp_out)) = 226 REPORT "Error: Player HP should decrease to 226 (16/18 * 255)" SEVERITY ERROR;
+        REPORT "[PASS] Player HP decreased: 255 -> 226 (-2 DMG Disadvantage!). Back in ST_ACTION_MENU (Opcode 5).";
 
         -- Step 10: Test 2D Navigation in Action Menu & Run Away (Evade)
         -- Currently at ATK ("00"). Test Right to CAPT ("01"), Left back to ATK ("00"), Down to RUN ("10")
