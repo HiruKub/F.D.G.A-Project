@@ -540,11 +540,20 @@ BEGIN
 
                     IF timer_done = '1' OR btn_enter_pulse = '1' THEN
                         IF e_hp <= capt_limit THEN
-                            -- จับสำเร็จ: นำเลเวลศัตรูมาบันทึกในคลัง
+                            -- จับสำเร็จ: บันทึกเฉพาะเมื่อศัตรูมีเลเวลสูงกว่าเดิมในคลัง (ป้องกันเลเวลลดลง)
                             CASE e_type IS
-                                WHEN ELEM_FIRE => inv_lvl_fire <= e_level;
-                                WHEN ELEM_PLANT => inv_lvl_plant <= e_level;
-                                WHEN OTHERS => inv_lvl_water <= e_level;
+                                WHEN ELEM_FIRE =>
+                                    IF e_level > inv_lvl_fire THEN
+                                        inv_lvl_fire <= e_level;
+                                    END IF;
+                                WHEN ELEM_PLANT =>
+                                    IF e_level > inv_lvl_plant THEN
+                                        inv_lvl_plant <= e_level;
+                                    END IF;
+                                WHEN OTHERS =>
+                                    IF e_level > inv_lvl_water THEN
+                                        inv_lvl_water <= e_level;
+                                    END IF;
                             END CASE;
                             current_state <= ST_VICTORYCAP;
                         ELSE
