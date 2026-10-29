@@ -432,7 +432,11 @@ BEGIN
 
                         -- เลเวลศัตรู: รับบิต LSB สีที่ 2 จาก FPGA 1 ('0' = เท่าเรา, '1' = เรา + 5)
                         IF enemy_lvl_lsb_in = '1' THEN
-                            spawn_lvl := p_level + 5;
+                            if p_level > 58 then
+                                spawn_lvl := to_unsigned(63,6);
+                            else
+                                spawn_lvl := p_level + 5;
+                            end if;
                         ELSE
                             spawn_lvl := p_level;
                         END IF;
