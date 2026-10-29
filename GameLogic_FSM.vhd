@@ -7,8 +7,9 @@
 --              - Title Screen (ST_TITLE)
 --              - All-in-One VGA Interface (Outputs to FPGA 1 VGA Compositor)
 --              - Monster Selection & Inventory Persistence
---              - Camera Enemy Spawn (ST_CAM_CAPTURE auto-timer/Enter, no cam_data_ready needed)
+--              - Camera Enemy Spawn (ST_CAM_CAPTURE uses 1.5s Auto-Timer ONLY to ensure SPI data arrives)
 --              - Battle System (Action Menu, Skills, Capture, Run)
+--              - Safe Capture: Prevents downgrading inventory level
 --              - 8-bit Level-Scaled Damage & HP System:
 --                  * Max HP = (Level * 2) + 16 (8 bits: 0..255)
 --                  * Base DMG = (Level / 2) + 2 (8 bits: 0..255)
@@ -419,11 +420,10 @@ BEGIN
 
                     ----------------------------------------------------------------
                     -- ST_CAM_CAPTURE (Opcode 3): แช่ภาพนิ่ง รอ FPGA 1 ประมวลผลเสร็จ
-                    -- ปลดล็อกด้วย Timer 1.5 วินาทีอัตโนมัติ หรือกดปุ่ม Enter
-                    -- (ไม่จำเป็นต้องใช้สาย cam_data_ready)
+                    -- ปลดล็อกด้วย Timer 1.5 วินาทีอัตโนมัติ (ไม่เปิดให้กด Enter ข้าม
+                    -- เพื่อการันตีว่า FPGA 1 มีเวลานับสีเสร็จและส่งข้อมูล SPI กลับมาครบ)
                     ----------------------------------------------------------------
                 WHEN ST_CAM_CAPTURE =>
-                    -- ปลดล็อกด้วย Timer 1.5 วินาทีอัตโนมัติ (ไม่ให้กด Enter ข้าม เพื่อรอข้อมูลกล้องให้ชัวร์)
                     IF timer_done = '1' THEN
                         -- ชนิดศัตรู: รับตรงจาก FPGA 1 (2 บิต: 00=Fire, 01=Plant, 10=Water)
                         e_type <= enemy_type_in;
@@ -446,8 +446,7 @@ BEGIN
                     -- ST_BATTLE_INTRO: เปิดตัวศัตรู (กด Enter เพื่อข้าม)
                     ----------------------------------------------------------------
                 WHEN ST_BATTLE_INTRO =>
-                    -- ปลดล็อกด้วย Timer 1.5 วินาทีอัตโนมัติ (ไม่ให้กด Enter ข้าม เพื่อรอข้อมูลกล้องให้ชัวร์)
-                    IF timer_done = '1' THEN
+                    IF timer_done = '1' OR btn_enter_pulse = '1' THEN
                         current_state <= ST_ACTION_MENU;
                         menu_idx <= "00";
                     END IF;
@@ -504,8 +503,7 @@ BEGIN
                 WHEN ST_PLAYER_ATK =>
                     calc_dmg := calc_damage(p_type, e_type, p_level, NOT skill_idx);
 
-                    -- ปลดล็อกด้วย Timer 1.5 วินาทีอัตโนมัติ (ไม่ให้กด Enter ข้าม เพื่อรอข้อมูลกล้องให้ชัวร์)
-                    IF timer_done = '1' THEN
+                    IF timer_done = '1' OR btn_enter_pulse = '1' THEN
                         IF e_hp <= calc_dmg THEN
                             e_hp <= (OTHERS => '0');
                             current_state <= ST_VICTORYKO;
@@ -521,8 +519,7 @@ BEGIN
                 WHEN ST_ENEMY_ATK =>
                     calc_dmg := calc_damage(e_type, p_type, e_level, '1');
 
-                    -- ปลดล็อกด้วย Timer 1.5 วินาทีอัตโนมัติ (ไม่ให้กด Enter ข้าม เพื่อรอข้อมูลกล้องให้ชัวร์)
-                    IF timer_done = '1' THEN
+                    IF timer_done = '1' OR btn_enter_pulse = '1' THEN
                         IF p_hp <= calc_dmg THEN
                             p_hp <= (OTHERS => '0');
                             current_state <= ST_DEFEAT;
@@ -542,8 +539,7 @@ BEGIN
                         capt_limit := to_unsigned(4, 8);
                     END IF;
 
-                    -- ปลดล็อกด้วย Timer 1.5 วินาทีอัตโนมัติ (ไม่ให้กด Enter ข้าม เพื่อรอข้อมูลกล้องให้ชัวร์)
-                    IF timer_done = '1' THEN
+                    IF timer_done = '1' OR btn_enter_pulse = '1' THEN
                         IF e_hp <= capt_limit THEN
                             -- จับสำเร็จ: บันทึกเฉพาะเมื่อศัตรูมีเลเวลสูงกว่าเดิมในคลัง (ป้องกันเลเวลลดลง)
                             CASE e_type IS

@@ -4,7 +4,7 @@
 -- Description: Complete Testbench for GameLogic_FSM (5-Button, 8-bit HP, LED Diagnostic)
 --              - Simulates 50 MHz Master Clock
 --              - Accelerated Simulation Clock Frequency (CLK_FREQ_HZ = 1000)
---              - No cam_data_ready needed (Auto-Timer / Enter in ST_CAM_CAPTURE)
+--              - ST_CAM_CAPTURE relies strictly on 1.5s Auto-Timer (no Enter skip)
 --              - Tests 5 Buttons: Up, Down, Left, Right, Enter
 --              - Tests 8-bit HP & LED outputs
 --              - Full Gameplay Scenario:
@@ -12,7 +12,7 @@
 --                  2. Title Screen -> Start Game (Enter)
 --                  3. Monster Select: Browse Left/Right/Up/Down -> Confirm Fire Mon (Enter)
 --                  4. Live Camera -> Capture Snapshot (Enter)
---                  5. Feed Camera Data (Plant Element, Lv 6, HP 28) -> Auto/Enter to Intro
+--                  5. Feed Camera Data (Plant Element, Lv 6, HP 28) -> Auto 1.5s Timer to Intro
 --                  6. Battle Intro -> Action Menu (Enter)
 --                  7. Action Menu -> Skill Menu (Skill 1: Elemental Strike) (Enter)
 --                  8. Player Attack (Advantage x2: 4 DMG dealt to enemy) (Enter)
@@ -165,7 +165,7 @@ BEGIN
 
     BEGIN
         REPORT "==================================================";
-        REPORT ">>> STARTING GAMELOGIC FSM SIMULATION (NO CAM_READY) <<<";
+        REPORT ">>> STARTING GAMELOGIC FSM SIMULATION (AUTO-TIMER) <<<";
         REPORT "==================================================";
 
         -- Step 1: System Power-on Reset
@@ -205,7 +205,7 @@ BEGIN
         ASSERT led(3) = '1' REPORT "Error: LED 3 should indicate capture active" SEVERITY ERROR;
         REPORT "[PASS] In ST_CAM_CAPTURE (Opcode 3). Freezing camera frame, LED 3 is ON.";
 
-        -- Step 6: FPGA 1 provides camera color via SPI:
+        -- Step 6: FPGA 1 provides camera color via SPI during the freeze frame:
         -- Enemy Element = Plant ("01"), Enemy Level LSB = '1' (Enemy Level = 1 + 5 = 6)
         enemy_type_in    <= "01"; -- Plant
         enemy_lvl_lsb_in <= '1';  -- Level + 5 = 6
@@ -216,13 +216,13 @@ BEGIN
         ASSERT led(2) = '1'           REPORT "Error: LED(2) should show Level LSB ('1')" SEVERITY ERROR;
         REPORT "[PASS] LED diagnostics correctly display received values: Element=Plant (01), LSB=1.";
 
-        -- Press ENTER (or wait for timer) to advance to battle intro
-        press_enter;
+        -- Wait for 1.5s snapshot timer to finish automatically and advance to Battle Intro (no Enter skip)
+        WAIT UNTIL state_code_out = "0100";
         ASSERT state_code_out = "0100" REPORT "Error: Should be in ST_BATTLE_INTRO (4)" SEVERITY ERROR;
         ASSERT enemy_type_out = "01" REPORT "Error: Enemy should be Plant (01)" SEVERITY ERROR;
         ASSERT to_integer(unsigned(enemy_lvl_out)) = 6 REPORT "Error: Enemy Level should be 6" SEVERITY ERROR;
         ASSERT to_integer(unsigned(enemy_hp_out)) = 28 REPORT "Error: Enemy Lv.6 Max HP should be 28" SEVERITY ERROR;
-        REPORT "[PASS] In ST_BATTLE_INTRO (Opcode 4). Wild Plant Enemy Lv.6 spawned with 8-bit HP = 28!";
+        REPORT "[PASS] In ST_BATTLE_INTRO (Opcode 4). Auto-Timer completed. Wild Plant Enemy Lv.6 spawned with 8-bit HP = 28!";
 
         -- Step 7: Skip intro to Action Menu with ENTER
         press_enter;
