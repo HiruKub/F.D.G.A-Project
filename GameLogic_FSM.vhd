@@ -423,7 +423,8 @@ BEGIN
                     -- (ไม่จำเป็นต้องใช้สาย cam_data_ready)
                     ----------------------------------------------------------------
                 WHEN ST_CAM_CAPTURE =>
-                    IF timer_done = '1' OR btn_enter_pulse = '1' THEN
+                    -- ปลดล็อกด้วย Timer 1.5 วินาทีอัตโนมัติ (ไม่ให้กด Enter ข้าม เพื่อรอข้อมูลกล้องให้ชัวร์)
+                    IF timer_done = '1' THEN
                         -- ชนิดศัตรู: รับตรงจาก FPGA 1 (2 บิต: 00=Fire, 01=Plant, 10=Water)
                         e_type <= enemy_type_in;
 
@@ -445,7 +446,8 @@ BEGIN
                     -- ST_BATTLE_INTRO: เปิดตัวศัตรู (กด Enter เพื่อข้าม)
                     ----------------------------------------------------------------
                 WHEN ST_BATTLE_INTRO =>
-                    IF timer_done = '1' OR btn_enter_pulse = '1' THEN
+                    -- ปลดล็อกด้วย Timer 1.5 วินาทีอัตโนมัติ (ไม่ให้กด Enter ข้าม เพื่อรอข้อมูลกล้องให้ชัวร์)
+                    IF timer_done = '1' THEN
                         current_state <= ST_ACTION_MENU;
                         menu_idx <= "00";
                     END IF;
@@ -502,7 +504,8 @@ BEGIN
                 WHEN ST_PLAYER_ATK =>
                     calc_dmg := calc_damage(p_type, e_type, p_level, NOT skill_idx);
 
-                    IF timer_done = '1' OR btn_enter_pulse = '1' THEN
+                    -- ปลดล็อกด้วย Timer 1.5 วินาทีอัตโนมัติ (ไม่ให้กด Enter ข้าม เพื่อรอข้อมูลกล้องให้ชัวร์)
+                    IF timer_done = '1' THEN
                         IF e_hp <= calc_dmg THEN
                             e_hp <= (OTHERS => '0');
                             current_state <= ST_VICTORYKO;
@@ -518,7 +521,8 @@ BEGIN
                 WHEN ST_ENEMY_ATK =>
                     calc_dmg := calc_damage(e_type, p_type, e_level, '1');
 
-                    IF timer_done = '1' OR btn_enter_pulse = '1' THEN
+                    -- ปลดล็อกด้วย Timer 1.5 วินาทีอัตโนมัติ (ไม่ให้กด Enter ข้าม เพื่อรอข้อมูลกล้องให้ชัวร์)
+                    IF timer_done = '1' THEN
                         IF p_hp <= calc_dmg THEN
                             p_hp <= (OTHERS => '0');
                             current_state <= ST_DEFEAT;
@@ -538,7 +542,8 @@ BEGIN
                         capt_limit := to_unsigned(4, 8);
                     END IF;
 
-                    IF timer_done = '1' OR btn_enter_pulse = '1' THEN
+                    -- ปลดล็อกด้วย Timer 1.5 วินาทีอัตโนมัติ (ไม่ให้กด Enter ข้าม เพื่อรอข้อมูลกล้องให้ชัวร์)
+                    IF timer_done = '1' THEN
                         IF e_hp <= capt_limit THEN
                             -- จับสำเร็จ: บันทึกเฉพาะเมื่อศัตรูมีเลเวลสูงกว่าเดิมในคลัง (ป้องกันเลเวลลดลง)
                             CASE e_type IS
