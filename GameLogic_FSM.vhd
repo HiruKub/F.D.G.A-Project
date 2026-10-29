@@ -28,7 +28,8 @@ USE IEEE.NUMERIC_STD.ALL;
 
 ENTITY GameLogic_FSM IS
     GENERIC (
-        CLK_FREQ_HZ : INTEGER := 50_000_000 -- 50 MHz Master Clock
+        CLK_FREQ_HZ : INTEGER := 50_000_000; -- 50 MHz Master Clock
+        BUTTON_ACTIVE_LOW : BOOLEAN := TRUE
     );
     PORT (
         clk : IN STD_LOGIC;
@@ -81,7 +82,6 @@ ARCHITECTURE Behavioral OF GameLogic_FSM IS
     CONSTANT ELEM_FIRE : STD_LOGIC_VECTOR(1 DOWNTO 0) := "00";
     CONSTANT ELEM_PLANT : STD_LOGIC_VECTOR(1 DOWNTO 0) := "01";
     CONSTANT ELEM_WATER : STD_LOGIC_VECTOR(1 DOWNTO 0) := "10";
-
     -- FSM State Definitions
     TYPE state_type IS (
         ST_INIT,
@@ -105,6 +105,9 @@ ARCHITECTURE Behavioral OF GameLogic_FSM IS
 
     -- Internal State Code signal
     SIGNAL state_code_int : STD_LOGIC_VECTOR(3 DOWNTO 0) := "0000";
+
+    -- Normalized Button Signals (Active-High: '1'=Pressed)
+    SIGNAL btn_up_in, btn_down_in, btn_left_in, btn_right_in, btn_enter_in : STD_LOGIC := '0';
 
     -- Button Signals after Debouncing and Edge Detection
     SIGNAL btn_up_pulse, btn_down_pulse, btn_left_pulse, btn_right_pulse, btn_enter_pulse : STD_LOGIC := '0';
@@ -212,6 +215,20 @@ ARCHITECTURE Behavioral OF GameLogic_FSM IS
 
 BEGIN
 
+    -- Button Polarity Normalization:
+    -- If BUTTON_ACTIVE_LOW is TRUE (Pull-Up), inverts '0' (pressed) to '1'.
+    -- If BUTTON_ACTIVE_LOW is FALSE (Pull-Down), passes '1' (pressed) directly.
+    btn_up_in <= (NOT btn_up_raw) WHEN BUTTON_ACTIVE_LOW ELSE
+        btn_up_raw;
+    btn_down_in <= (NOT btn_down_raw) WHEN BUTTON_ACTIVE_LOW ELSE
+        btn_down_raw;
+    btn_left_in <= (NOT btn_left_raw) WHEN BUTTON_ACTIVE_LOW ELSE
+        btn_left_raw;
+    btn_right_in <= (NOT btn_right_raw) WHEN BUTTON_ACTIVE_LOW ELSE
+        btn_right_raw;
+    btn_enter_in <= (NOT btn_enter_raw) WHEN BUTTON_ACTIVE_LOW ELSE
+        btn_enter_raw;
+
     ----------------------------------------------------------------------------
     -- 1. 5-Button Debounce & Single-Pulse Edge Detector
     ----------------------------------------------------------------------------
@@ -245,11 +262,11 @@ BEGIN
         ELSIF rising_edge(clk) THEN
 
             -- BTN UP
-            IF btn_up_raw = btn_up_state THEN
+            IF btn_up_in = btn_up_state THEN
                 db_cnt_up <= 0;
             ELSE
                 IF db_cnt_up = DEBOUNCE_LIMIT THEN
-                    btn_up_state <= btn_up_raw;
+                    btn_up_state <= btn_up_in;
                     db_cnt_up <= 0;
                 ELSE
                     db_cnt_up <= db_cnt_up + 1;
@@ -257,11 +274,11 @@ BEGIN
             END IF;
 
             -- BTN DOWN
-            IF btn_down_raw = btn_down_state THEN
+            IF btn_down_in = btn_down_state THEN
                 db_cnt_down <= 0;
             ELSE
                 IF db_cnt_down = DEBOUNCE_LIMIT THEN
-                    btn_down_state <= btn_down_raw;
+                    btn_down_state <= btn_down_in;
                     db_cnt_down <= 0;
                 ELSE
                     db_cnt_down <= db_cnt_down + 1;
@@ -269,11 +286,11 @@ BEGIN
             END IF;
 
             -- BTN LEFT
-            IF btn_left_raw = btn_left_state THEN
+            IF btn_left_in = btn_left_state THEN
                 db_cnt_left <= 0;
             ELSE
                 IF db_cnt_left = DEBOUNCE_LIMIT THEN
-                    btn_left_state <= btn_left_raw;
+                    btn_left_state <= btn_left_in;
                     db_cnt_left <= 0;
                 ELSE
                     db_cnt_left <= db_cnt_left + 1;
@@ -281,11 +298,11 @@ BEGIN
             END IF;
 
             -- BTN RIGHT
-            IF btn_right_raw = btn_right_state THEN
+            IF btn_right_in = btn_right_state THEN
                 db_cnt_right <= 0;
             ELSE
                 IF db_cnt_right = DEBOUNCE_LIMIT THEN
-                    btn_right_state <= btn_right_raw;
+                    btn_right_state <= btn_right_in;
                     db_cnt_right <= 0;
                 ELSE
                     db_cnt_right <= db_cnt_right + 1;
@@ -293,11 +310,11 @@ BEGIN
             END IF;
 
             -- BTN ENTER
-            IF btn_enter_raw = btn_enter_state THEN
+            IF btn_enter_in = btn_enter_state THEN
                 db_cnt_enter <= 0;
             ELSE
                 IF db_cnt_enter = DEBOUNCE_LIMIT THEN
-                    btn_enter_state <= btn_enter_raw;
+                    btn_enter_state <= btn_enter_in;
                     db_cnt_enter <= 0;
                 ELSE
                     db_cnt_enter <= db_cnt_enter + 1;

@@ -72,7 +72,8 @@ BEGIN
     ----------------------------------------------------------------------------
     uut : ENTITY work.GameLogic_FSM
         GENERIC MAP (
-            CLK_FREQ_HZ => 1_000
+            CLK_FREQ_HZ       => 1_000,
+            BUTTON_ACTIVE_LOW => FALSE -- Simulation drives '1' as pressed
         )
         PORT MAP (
             clk              => clk,
