@@ -386,27 +386,29 @@ BEGIN
                             mon_select_idx <= mon_select_idx + 1;
                         END IF;
                     END IF;
+
                     cursor_out <= STD_LOGIC_VECTOR(mon_select_idx);
+
+                    CASE mon_select_idx IS
+                        WHEN "00" =>
+                            p_type <= ELEM_FIRE;
+                            p_level <= inv_lvl_fire;
+                            p_max_hp <= ("0" & inv_lvl_fire & '0') + 16;
+                            p_hp <= ("0" & inv_lvl_fire & '0') + 16;
+                        WHEN "01" =>
+                            p_type <= ELEM_PLANT;
+                            p_level <= inv_lvl_plant;
+                            p_max_hp <= ("0" & inv_lvl_plant & '0') + 16;
+                            p_hp <= ("0" & inv_lvl_plant & '0') + 16;
+                        WHEN OTHERS =>
+                            p_type <= ELEM_WATER;
+                            p_level <= inv_lvl_water;
+                            p_max_hp <= ("0" & inv_lvl_water & '0') + 16;
+                            p_hp <= ("0" & inv_lvl_water & '0') + 16;
+                    END CASE;
 
                     -- Confirm Selected Monster
                     IF btn_enter_pulse = '1' THEN
-                        CASE mon_select_idx IS
-                            WHEN "00" =>
-                                p_type <= ELEM_FIRE;
-                                p_level <= inv_lvl_fire;
-                                p_max_hp <= ("0" & inv_lvl_fire & '0') + 16;
-                                p_hp <= ("0" & inv_lvl_fire & '0') + 16;
-                            WHEN "01" =>
-                                p_type <= ELEM_PLANT;
-                                p_level <= inv_lvl_plant;
-                                p_max_hp <= ("0" & inv_lvl_plant & '0') + 16;
-                                p_hp <= ("0" & inv_lvl_plant & '0') + 16;
-                            WHEN OTHERS =>
-                                p_type <= ELEM_WATER;
-                                p_level <= inv_lvl_water;
-                                p_max_hp <= ("0" & inv_lvl_water & '0') + 16;
-                                p_hp <= ("0" & inv_lvl_water & '0') + 16;
-                        END CASE;
                         current_state <= ST_CAM_LIVE;
                     END IF;
 

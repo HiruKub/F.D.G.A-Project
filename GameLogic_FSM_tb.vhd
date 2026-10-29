@@ -182,14 +182,29 @@ BEGIN
         REPORT "[PASS] In ST_SELECT_MON (Opcode 1). Default monster selected.";
 
         -- Step 3: Browse monsters with RIGHT and LEFT buttons
+        -- Verify that player_lvl_out and player_type_out update in REAL TIME as cursor moves
         press_right; -- Next monster (Plant, cursor = 01)
         WAIT FOR 200 ns;
+        ASSERT player_type_out = "01" REPORT "Error: Preview should show Plant (01)" SEVERITY ERROR;
+        ASSERT to_integer(unsigned(player_lvl_out)) = 1 REPORT "Error: Plant Level should be 1" SEVERITY ERROR;
+        ASSERT to_integer(unsigned(player_max_hp_o)) = 18 REPORT "Error: Plant Max HP should be 18" SEVERITY ERROR;
+        REPORT "[PASS] Real-time preview: Plant (01), Lv 1, Max HP 18.";
+
         press_right; -- Next monster (Water, cursor = 10)
         WAIT FOR 200 ns;
+        ASSERT player_type_out = "10" REPORT "Error: Preview should show Water (10)" SEVERITY ERROR;
+        ASSERT to_integer(unsigned(player_lvl_out)) = 1 REPORT "Error: Water Level should be 1" SEVERITY ERROR;
+        ASSERT to_integer(unsigned(player_max_hp_o)) = 18 REPORT "Error: Water Max HP should be 18" SEVERITY ERROR;
+        REPORT "[PASS] Real-time preview: Water (10), Lv 1, Max HP 18.";
+
         press_left;  -- Previous monster (Plant, cursor = 01)
         WAIT FOR 200 ns;
         press_left;  -- Previous monster (Fire, cursor = 00)
         WAIT FOR 200 ns;
+        ASSERT player_type_out = "00" REPORT "Error: Preview should show Fire (00)" SEVERITY ERROR;
+        ASSERT to_integer(unsigned(player_lvl_out)) = 1 REPORT "Error: Fire Level should be 1" SEVERITY ERROR;
+        ASSERT to_integer(unsigned(player_max_hp_o)) = 18 REPORT "Error: Fire Max HP should be 18" SEVERITY ERROR;
+        REPORT "[PASS] Real-time preview: Fire (00), Lv 1, Max HP 18.";
 
         -- Step 4: Confirm Select Fire Monster with ENTER
         press_enter;
