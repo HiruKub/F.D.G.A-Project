@@ -25,9 +25,9 @@ package link5_pkg is
   function unpack(fr : frame_t) return fields_t;
   -- test row n (0..12): walking-one / walking-zero patterns so every payload bit
   -- is seen as both 0 and 1 over one full cycle of rows
-  function test_fields(n : natural) return fields_t;
+  -- function test_fields(n : natural) return fields_t;
   -- reply computed from the PREVIOUS opcode: 000 | op(1:0) | op(3:2) | parity(op)
-  function status_byte(op : std_logic_vector(3 downto 0)) return byte_t;
+  -- function status_byte(op : std_logic_vector(3 downto 0)) return byte_t;
 end package;
 
 package body link5_pkg is
@@ -62,26 +62,26 @@ package body link5_pkg is
     return f;
   end function;
 
-  function test_fields(n : natural) return fields_t is
-    variable f : fields_t;
-  begin
-    f.opcode := std_logic_vector(to_unsigned(n, 4));
-    f.mon_p  := std_logic_vector(to_unsigned(n mod 4, 2));
-    f.mon_e  := std_logic_vector(to_unsigned((n + 1) mod 4, 2));
-    f.cursor := std_logic_vector(to_unsigned((n + 2) mod 4, 2));
-    f.lvl_p  := std_logic_vector(shift_left(to_unsigned(1, 6), n mod 6));
-    f.hp_p   := std_logic_vector(shift_left(to_unsigned(1, 8), (n + 1) mod 8));
-    f.lvl_e  := not std_logic_vector(shift_left(to_unsigned(1, 6), (n + 2) mod 6));
-    f.hp_e   := not std_logic_vector(shift_left(to_unsigned(1, 8), (n + 3) mod 8));
-    f.pad    := (others => '0');
-    return f;
-  end function;
+  -- function test_fields(n : natural) return fields_t is
+  --   variable f : fields_t;
+  -- begin
+  --   f.opcode := std_logic_vector(to_unsigned(n, 4));
+  --   f.mon_p  := std_logic_vector(to_unsigned(n mod 4, 2));
+  --   f.mon_e  := std_logic_vector(to_unsigned((n + 1) mod 4, 2));
+  --   f.cursor := std_logic_vector(to_unsigned((n + 2) mod 4, 2));
+  --   f.lvl_p  := std_logic_vector(shift_left(to_unsigned(1, 6), n mod 6));
+  --   f.hp_p   := std_logic_vector(shift_left(to_unsigned(1, 8), (n + 1) mod 8));
+  --   f.lvl_e  := not std_logic_vector(shift_left(to_unsigned(1, 6), (n + 2) mod 6));
+  --   f.hp_e   := not std_logic_vector(shift_left(to_unsigned(1, 8), (n + 3) mod 8));
+  --   f.pad    := (others => '0');
+  --   return f;
+  -- end function;
 
-  function status_byte(op : std_logic_vector(3 downto 0)) return byte_t is
-    variable lv : std_logic;
-  begin
-    lv := op(3) xor op(2) xor op(1) xor op(0);
-    return "000" & op(1 downto 0) & op(3 downto 2) & lv;
-  end function;
+  -- function status_byte(op : std_logic_vector(3 downto 0)) return byte_t is
+  --   variable lv : std_logic;
+  -- begin
+  --   lv := op(3) xor op(2) xor op(1) xor op(0);
+  --   return "000" & op(1 downto 0) & op(3 downto 2) & lv;
+  -- end function;
 
 end package body;

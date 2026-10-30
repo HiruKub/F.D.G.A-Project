@@ -56,8 +56,8 @@ architecture rtl of fpga2_top is
   signal rx_lv, rx_new, reply_ok : std_logic;
   signal enemy_type_g : std_logic_vector(1 downto 0);
 
-  signal cam_ready : std_logic := '0';
-  signal cap_cnt   : natural range 0 to CAPTURE_FRAMES := 0;
+  -- signal cam_ready : std_logic := '0';
+  -- signal cap_cnt   : natural range 0 to CAPTURE_FRAMES := 0;
 begin
   -- raw inputs, polarity fixed so that '1' = pressed
   b_in <= (rst_btn & btn_up & btn_down & btn_left & btn_right & btn_enter)
@@ -108,22 +108,22 @@ begin
       spi_sclk => spi_sclk, spi_mosi => spi_mosi, spi_cs_n => spi_cs_n, spi_miso => spi_miso);
 
   -- cam_data_ready generator (fixed delay, counted in good replies)
-  process (clk50)
-  begin
-    if rising_edge(clk50) then
-      cam_ready <= '0';
-      if state_code /= "0011" then
-        cap_cnt <= 0;
-      elsif rx_new = '1' then
-        if cap_cnt = CAPTURE_FRAMES - 1 then
-          cap_cnt   <= 0;
-          cam_ready <= '1';
-        else
-          cap_cnt <= cap_cnt + 1;
-        end if;
-      end if;
-    end if;
-  end process;
+  -- process (clk50)
+  -- begin
+  --   if rising_edge(clk50) then
+  --     cam_ready <= '0';
+  --     if state_code /= "0011" then
+  --       cap_cnt <= 0;
+  --     elsif rx_new = '1' then
+  --       if cap_cnt = CAPTURE_FRAMES - 1 then
+  --         cap_cnt   <= 0;
+  --         cam_ready <= '1';
+  --       else
+  --         cap_cnt <= cap_cnt + 1;
+  --       end if;
+  --     end if;
+  --   end if;
+  -- end process;
 
   led <= hb(25) & rx_colour1 & reply_ok & state_code;
 end architecture;
