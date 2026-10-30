@@ -540,23 +540,44 @@ begin
                                 when ELEM_FIRE =>
                                     if e_level > inv_lvl_fire then
                                         inv_lvl_fire <= e_level;
-                                    else
+                                    elsif inv_lvl_fire < 63 then
                                         inv_lvl_fire <= inv_lvl_fire + 1;
                                     end if;
 
                                 when ELEM_PLANT =>
                                     if e_level > inv_lvl_plant then
                                         inv_lvl_plant <= e_level;
-                                    else
+                                    elsif inv_lvl_plant < 63 then
                                         inv_lvl_plant <= inv_lvl_plant + 1;
                                     end if;
+
                                 when others =>
                                     if e_level > inv_lvl_water then
                                         inv_lvl_water <= e_level;
-                                    else
+                                    elsif inv_lvl_water < 63 then
                                         inv_lvl_water <= inv_lvl_water + 1;
                                     end if;
                             end case;
+
+                            -- หากจับตัวที่ต่างธาตุกับตัวเรา มอนสเตอร์ตัวที่กำลังใช้อยู่จะได้ Level +1 ด้วย
+                            if p_type /= e_type then
+                                case p_type is 
+                                    when ELEM_FIRE =>
+                                        if inv_lvl_fire < 63 then
+                                            inv_lvl_fire <= inv_lvl_fire + 1;
+                                        end if;
+                                    when ELEM_PLANT =>
+                                        if inv_lvl_plant < 63 then
+                                            inv_lvl_plant <= inv_lvl_plant + 1;
+                                        end if;
+                                    when ELEM_WATER =>
+                                        if inv_lvl_water < 63 then
+                                            inv_lvl_water <= inv_lvl_water + 1;
+                                        end if;
+                                    when others =>
+                                        null;
+                                end case;
+                            end if;
                             current_state <= ST_VICTORYCAP;
                         else
                             -- จับไม่สำเร็จ: โดนศัตรูโจมตีสวนฟรี 1 ครั้ง

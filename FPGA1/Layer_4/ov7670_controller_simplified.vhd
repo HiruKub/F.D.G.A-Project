@@ -40,7 +40,7 @@ begin
                 when 2  => data <= x"1100";
                 when 3  => data <= x"0C00";
                 when 4  => data <= x"3E00";
-                when 5  => data <= x"8C00";
+                when 5  => data <= x"8C03";
                 when 6  => data <= x"0400";
                 when 7  => data <= x"40D0";
                 when 8  => data <= x"3A04";

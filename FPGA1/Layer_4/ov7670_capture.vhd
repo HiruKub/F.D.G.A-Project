@@ -27,7 +27,7 @@ architecture Behavioral of ov7670_capture is
 begin
     addr <= address;
     we   <= we_reg;
-    dout <= d_latch(15 downto 12) & d_latch(10 downto 7) & d_latch(4 downto 1); 
+    dout <= d_latch(15 downto 4); 
 
     capture_process: process(pclk)
     begin
