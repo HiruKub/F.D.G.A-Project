@@ -22,29 +22,29 @@
 --                  * led(7:4) = state_code_out (Current Opcode 0..13)
 --------------------------------------------------------------------------------
 
-LIBRARY IEEE;
-USE IEEE.STD_LOGIC_1164.ALL;
-USE IEEE.NUMERIC_STD.ALL;
+library IEEE;
+use IEEE.STD_LOGIC_1164.all;
+use IEEE.NUMERIC_STD.all;
 
-ENTITY GameLogic_FSM IS
-    GENERIC (
-        CLK_FREQ_HZ : INTEGER := 50_000_000; -- 50 MHz Master Clock
-        BUTTON_ACTIVE_LOW : BOOLEAN := TRUE
+entity GameLogic_FSM is
+    generic (
+        CLK_FREQ_HZ : integer := 50_000_000; -- 50 MHz Master Clock
+        BUTTON_ACTIVE_LOW : boolean := TRUE
     );
-    PORT (
-        clk : IN STD_LOGIC;
-        reset : IN STD_LOGIC; -- Active-High System Reset
+    port (
+        clk : in std_logic;
+        reset : in std_logic; -- Active-High System Reset
 
         -- Physical Push Buttons (Raw Inputs with internal Debounce)
-        btn_up_raw : IN STD_LOGIC; -- D-PAD UP
-        btn_down_raw : IN STD_LOGIC; -- D-PAD DOWN
-        btn_left_raw : IN STD_LOGIC; -- D-PAD LEFT
-        btn_right_raw : IN STD_LOGIC; -- D-PAD RIGHT
-        btn_enter_raw : IN STD_LOGIC; -- ENTER / ACTION / CONFIRM
+        btn_up_raw : in std_logic; -- D-PAD UP
+        btn_down_raw : in std_logic; -- D-PAD DOWN
+        btn_left_raw : in std_logic; -- D-PAD LEFT
+        btn_right_raw : in std_logic; -- D-PAD RIGHT
+        btn_enter_raw : in std_logic; -- ENTER / ACTION / CONFIRM
 
         -- Enemy Data Interface from FPGA 1 (via SPI status byte)
-        enemy_type_in : IN STD_LOGIC_VECTOR(1 DOWNTO 0); -- Dominant Element (00: Fire, 01: Plant, 10: Water)
-        enemy_lvl_lsb_in : IN STD_LOGIC; -- 2nd Color LSB ('0' = Lv, '1' = Lv+5)
+        enemy_type_in : in std_logic_vector(1 downto 0); -- Dominant Element (00: Fire, 01: Plant, 10: Water)
+        enemy_lvl_lsb_in : in std_logic; -- 2nd Color LSB ('0' = Lv, '1' = Lv+5)
 
         ------------------------------------------------------------------------
         -- Interface to FPGA 1 (VGA Compositor & HUD Renderer)
@@ -54,36 +54,36 @@ ENTITY GameLogic_FSM IS
         -- 0100: Prepare, 0101: Action Menu, 0110: Skill Menu, 0111: Player Atk,
         -- 1000: Enemy Atk, 1001: Capt Monster, 1010: Evade, 1011: Victory,
         -- 1100: Loss, 1101: VictoryCap
-        state_code_out : OUT STD_LOGIC_VECTOR(3 DOWNTO 0);
+        state_code_out : out std_logic_vector(3 downto 0);
 
         -- Cursor / Selection Indices for VGA Box rendering
-        cursor_out : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+        cursor_out : out std_logic_vector(1 downto 0);
 
         -- Player Monster Status Outputs (Top-Left HUD)
-        player_type_out : OUT STD_LOGIC_VECTOR(1 DOWNTO 0); -- 00: Fire, 01: Plant, 10: Water
-        player_lvl_out : OUT STD_LOGIC_VECTOR(5 DOWNTO 0); -- Current Level (6 bits: 0..63)
-        player_hp_out : OUT STD_LOGIC_VECTOR(7 DOWNTO 0); -- Current HP (8 bits: 0..255)
-        player_max_hp_o : OUT STD_LOGIC_VECTOR(7 DOWNTO 0); -- Max HP (8 bits: 0..255)
+        player_type_out : out std_logic_vector(1 downto 0); -- 00: Fire, 01: Plant, 10: Water
+        player_lvl_out : out std_logic_vector(5 downto 0); -- Current Level (6 bits: 0..63)
+        player_hp_out : out std_logic_vector(7 downto 0); -- Current HP (8 bits: 0..255)
+        player_max_hp_o : out std_logic_vector(7 downto 0); -- Max HP (8 bits: 0..255)
 
         -- Enemy Monster Status Outputs (Top-Right HUD)
-        enemy_type_out : OUT STD_LOGIC_VECTOR(1 DOWNTO 0); -- Dominant Element
-        enemy_lvl_out : OUT STD_LOGIC_VECTOR(5 DOWNTO 0); -- Current Level (6 bits: 0..63)
-        enemy_hp_out : OUT STD_LOGIC_VECTOR(7 DOWNTO 0); -- Current HP (8 bits: 0..255)
-        enemy_max_hp_o : OUT STD_LOGIC_VECTOR(7 DOWNTO 0); -- Max HP (8 bits: 0..255)
+        enemy_type_out : out std_logic_vector(1 downto 0); -- Dominant Element
+        enemy_lvl_out : out std_logic_vector(5 downto 0); -- Current Level (6 bits: 0..63)
+        enemy_hp_out : out std_logic_vector(7 downto 0); -- Current HP (8 bits: 0..255)
+        enemy_max_hp_o : out std_logic_vector(7 downto 0); -- Max HP (8 bits: 0..255)
 
         -- Diagnostic Onboard LEDs (Displays received camera data & Opcode)
-        led : OUT STD_LOGIC_VECTOR(7 DOWNTO 0)
+        led : out std_logic_vector(7 downto 0)
     );
-END ENTITY GameLogic_FSM;
+end entity GameLogic_FSM;
 
-ARCHITECTURE Behavioral OF GameLogic_FSM IS
+architecture Behavioral of GameLogic_FSM is
 
     -- Element Type Constants (2 bits)
-    CONSTANT ELEM_FIRE : STD_LOGIC_VECTOR(1 DOWNTO 0) := "00";
-    CONSTANT ELEM_PLANT : STD_LOGIC_VECTOR(1 DOWNTO 0) := "01";
-    CONSTANT ELEM_WATER : STD_LOGIC_VECTOR(1 DOWNTO 0) := "10";
+    constant ELEM_FIRE : std_logic_vector(1 downto 0) := "00";
+    constant ELEM_PLANT : std_logic_vector(1 downto 0) := "01";
+    constant ELEM_WATER : std_logic_vector(1 downto 0) := "10";
     -- FSM State Definitions
-    TYPE state_type IS (
+    type state_type is (
         ST_INIT,
         ST_TITLE, -- 0: หน้าแรก (Title Screen)
         ST_SELECT_MON, -- 1: ฉากเลือกมอนสเตอร์ในคลัง (3 ตัวเริ่มต้น Lv 1)
@@ -101,42 +101,42 @@ ARCHITECTURE Behavioral OF GameLogic_FSM IS
         ST_VICTORYCAP -- 13: ได้รับชัยชนะเพราะจับสำเร็จ (VictoryCap)
     );
 
-    SIGNAL current_state : state_type := ST_INIT;
+    signal current_state : state_type := ST_INIT;
 
     -- Internal State Code signal
-    SIGNAL state_code_int : STD_LOGIC_VECTOR(3 DOWNTO 0) := "0000";
+    signal state_code_int : std_logic_vector(3 downto 0) := "0000";
 
     -- Debounced Single-Clock Rising-Edge Button Pulses (from u_debounce)
-    SIGNAL btn_up_pulse, btn_down_pulse, btn_left_pulse, btn_right_pulse, btn_enter_pulse : STD_LOGIC := '0';
+    signal btn_up_pulse, btn_down_pulse, btn_left_pulse, btn_right_pulse, btn_enter_pulse : std_logic := '0';
 
     -- Persistent Monster Inventory (Levels start at 1, max 63)
-    SIGNAL inv_lvl_fire : unsigned(5 DOWNTO 0) := to_unsigned(1, 6);
-    SIGNAL inv_lvl_plant : unsigned(5 DOWNTO 0) := to_unsigned(1, 6);
-    SIGNAL inv_lvl_water : unsigned(5 DOWNTO 0) := to_unsigned(1, 6);
+    signal inv_lvl_fire : unsigned(5 downto 0) := to_unsigned(1, 6);
+    signal inv_lvl_plant : unsigned(5 downto 0) := to_unsigned(1, 6);
+    signal inv_lvl_water : unsigned(5 downto 0) := to_unsigned(1, 6);
 
     -- Active Battle Registers (8-bit HP: Default Level 1 HP = (1*2) + 16 = 18)
-    SIGNAL p_type : STD_LOGIC_VECTOR(1 DOWNTO 0) := ELEM_FIRE;
-    SIGNAL p_level : unsigned(5 DOWNTO 0) := to_unsigned(1, 6);
-    SIGNAL p_hp : unsigned(7 DOWNTO 0) := to_unsigned(18, 8);
-    SIGNAL p_max_hp : unsigned(7 DOWNTO 0) := to_unsigned(18, 8);
+    signal p_type : std_logic_vector(1 downto 0) := ELEM_FIRE;
+    signal p_level : unsigned(5 downto 0) := to_unsigned(1, 6);
+    signal p_hp : unsigned(7 downto 0) := to_unsigned(18, 8);
+    signal p_max_hp : unsigned(7 downto 0) := to_unsigned(18, 8);
 
-    SIGNAL e_type : STD_LOGIC_VECTOR(1 DOWNTO 0) := ELEM_PLANT;
-    SIGNAL e_level : unsigned(5 DOWNTO 0) := to_unsigned(1, 6);
-    SIGNAL e_hp : unsigned(7 DOWNTO 0) := to_unsigned(18, 8);
-    SIGNAL e_max_hp : unsigned(7 DOWNTO 0) := to_unsigned(18, 8);
+    signal e_type : std_logic_vector(1 downto 0) := ELEM_PLANT;
+    signal e_level : unsigned(5 downto 0) := to_unsigned(1, 6);
+    signal e_hp : unsigned(7 downto 0) := to_unsigned(18, 8);
+    signal e_max_hp : unsigned(7 downto 0) := to_unsigned(18, 8);
 
     -- Cursor Selection Registers
-    SIGNAL mon_select_idx : unsigned(1 DOWNTO 0) := "00"; -- 0: Fire, 1: Plant, 2: Water
-    SIGNAL menu_idx : unsigned(1 DOWNTO 0) := "00"; -- 0: ATK, 1: CAPT, 2: RUN
-    SIGNAL skill_idx : STD_LOGIC := '0'; -- 0: Normal Tackle, 1: Elemental Strike
+    signal mon_select_idx : unsigned(1 downto 0) := "00"; -- 0: Fire, 1: Plant, 2: Water
+    signal menu_idx : unsigned(1 downto 0) := "00"; -- 0: ATK, 1: CAPT, 2: RUN
+    signal skill_idx : std_logic := '0'; -- 0: Normal Tackle, 1: Elemental Strike
 
     -- Timer for Animations/Pauses/Snapshot (1.5 seconds @ CLK_FREQ_HZ)
-    CONSTANT TIMER_1_5_SEC : INTEGER := (CLK_FREQ_HZ * 3) / 2;
-    SIGNAL timer_cnt : INTEGER RANGE 0 TO TIMER_1_5_SEC := 0;
-    SIGNAL timer_done : STD_LOGIC := '0';
+    constant TIMER_1_5_SEC : integer := (CLK_FREQ_HZ * 3) / 2;
+    signal timer_cnt : integer range 0 to TIMER_1_5_SEC := 0;
+    signal timer_done : std_logic := '0';
 
     -- Prev state
-    SIGNAL prev_state : state_type := ST_INIT;
+    signal prev_state : state_type := ST_INIT;
     ----------------------------------------------------------------------------
     -- 8-bit Level-Scaled Damage Calculator Function
     -- Base DMG = (Attacker_Level / 2) + 2
@@ -145,86 +145,86 @@ ARCHITECTURE Behavioral OF GameLogic_FSM IS
     --   Neutral      = Base * 1
     --   Disadvantage = Base / 2 (Shift right 1, minimum 1)
     ----------------------------------------------------------------------------
-    FUNCTION calc_damage(
-        atk_type : STD_LOGIC_VECTOR(1 DOWNTO 0);
-        def_type : STD_LOGIC_VECTOR(1 DOWNTO 0);
-        atk_level : unsigned(5 DOWNTO 0);
-        is_elem_skill : STD_LOGIC
-    ) RETURN unsigned IS
-        VARIABLE base_dmg : unsigned(7 DOWNTO 0);
-        VARIABLE dmg : unsigned(7 DOWNTO 0);
-    BEGIN
+    function calc_damage(
+        atk_type : std_logic_vector(1 downto 0);
+        def_type : std_logic_vector(1 downto 0);
+        atk_level : unsigned(5 downto 0);
+        is_elem_skill : std_logic
+    ) return unsigned is
+        variable base_dmg : unsigned(7 downto 0);
+        variable dmg : unsigned(7 downto 0);
+    begin
         -- Base DMG scales with level: (atk_level / 2) + 2 (8-bit representation)
-        base_dmg := ("000" & atk_level(5 DOWNTO 1)) + 2;
+        base_dmg := ("000" & atk_level(5 downto 1)) + 2;
 
-        IF is_elem_skill = '0' THEN
+        if is_elem_skill = '0' then
             -- Normal Tackle: Flat Base DMG (scaled with Level, neutral to element)
             dmg := base_dmg;
-        ELSE
+        else
             -- Elemental Strike: Type Matching
-            IF (atk_type = ELEM_FIRE AND def_type = ELEM_PLANT) OR
-                (atk_type = ELEM_PLANT AND def_type = ELEM_WATER) OR
-                (atk_type = ELEM_WATER AND def_type = ELEM_FIRE) THEN
+            if (atk_type = ELEM_FIRE and def_type = ELEM_PLANT) or
+                (atk_type = ELEM_PLANT and def_type = ELEM_WATER) or
+                (atk_type = ELEM_WATER and def_type = ELEM_FIRE) then
                 -- Advantage: Base * 2 (Shift left 1)
-                dmg := base_dmg(6 DOWNTO 0) & '0';
-            ELSIF (atk_type = def_type) THEN
+                dmg := base_dmg(6 downto 0) & '0';
+            elsif (atk_type = def_type) then
                 -- Neutral: Base * 1
                 dmg := base_dmg;
-            ELSE
+            else
                 -- Disadvantage: Base / 2 (Shift right 1, minimum 1)
-                dmg := "0" & base_dmg(7 DOWNTO 1);
-                IF dmg = 0 THEN
+                dmg := "0" & base_dmg(7 downto 1);
+                if dmg = 0 then
                     dmg := to_unsigned(1, 8);
-                END IF;
-            END IF;
-        END IF;
-        RETURN dmg;
-    END FUNCTION;
+                end if;
+            end if;
+        end if;
+        return dmg;
+    end function;
 
     ----------------------------------------------------------------------------
     -- 8-bit Normalized HP Mapping Function (Scale to 0..255)
     -- Formula: (current_hp * 255) / max_hp
     -- Ensures full health bar = 255 pixels for FPGA 1 VGA renderer
     ----------------------------------------------------------------------------
-    FUNCTION map_hp_255(
-        cur_hp : unsigned(7 DOWNTO 0);
-        max_hp : unsigned(7 DOWNTO 0)
-    ) RETURN STD_LOGIC_VECTOR IS
-        VARIABLE temp : unsigned(15 DOWNTO 0);
-        VARIABLE res : unsigned(15 DOWNTO 0);
-    BEGIN
-        IF cur_hp = 0 OR max_hp = 0 THEN
-            RETURN x"00";
-        ELSIF cur_hp >= max_hp THEN
-            RETURN x"FF";
-        ELSE
+    function map_hp_255(
+        cur_hp : unsigned(7 downto 0);
+        max_hp : unsigned(7 downto 0)
+    ) return std_logic_vector is
+        variable temp : unsigned(15 downto 0);
+        variable res : unsigned(15 downto 0);
+    begin
+        if cur_hp = 0 or max_hp = 0 then
+            return x"00";
+        elsif cur_hp >= max_hp then
+            return x"FF";
+        else
             temp := cur_hp * to_unsigned(255, 8);
             res := temp / max_hp;
-            RETURN STD_LOGIC_VECTOR(res(7 DOWNTO 0));
-        END IF;
-    END FUNCTION;
+            return std_logic_vector(res(7 downto 0));
+        end if;
+    end function;
 
-BEGIN
+begin
 
     ----------------------------------------------------------------------------
     -- 1. Hardware Debounce & Edge Detector Sub-Module Instantiation
     ----------------------------------------------------------------------------
-    u_debounce : ENTITY work.btn_debounce
-        GENERIC MAP (
-            CLK_FREQ_HZ       => CLK_FREQ_HZ,
+    u_debounce : entity work.btn_debounce
+        generic map(
+            CLK_FREQ_HZ => CLK_FREQ_HZ,
             BUTTON_ACTIVE_LOW => BUTTON_ACTIVE_LOW
         )
-        PORT MAP (
-            clk             => clk,
-            reset           => reset,
-            btn_up_raw      => btn_up_raw,
-            btn_down_raw    => btn_down_raw,
-            btn_left_raw    => btn_left_raw,
-            btn_right_raw   => btn_right_raw,
-            btn_enter_raw   => btn_enter_raw,
-            btn_up_pulse    => btn_up_pulse,
-            btn_down_pulse  => btn_down_pulse,
-            btn_left_pulse  => btn_left_pulse,
+        port map(
+            clk => clk,
+            reset => reset,
+            btn_up_raw => btn_up_raw,
+            btn_down_raw => btn_down_raw,
+            btn_left_raw => btn_left_raw,
+            btn_right_raw => btn_right_raw,
+            btn_enter_raw => btn_enter_raw,
+            btn_up_pulse => btn_up_pulse,
+            btn_down_pulse => btn_down_pulse,
+            btn_left_pulse => btn_left_pulse,
             btn_right_pulse => btn_right_pulse,
             btn_enter_pulse => btn_enter_pulse
         );
@@ -232,12 +232,12 @@ BEGIN
     ----------------------------------------------------------------------------
     -- 2. State & Datapath Synchronous Process
     ----------------------------------------------------------------------------
-    p_fsm_sync : PROCESS (clk, reset)
-        VARIABLE calc_dmg : unsigned(7 DOWNTO 0);
-        VARIABLE capt_limit : unsigned(7 DOWNTO 0);
-        VARIABLE spawn_lvl : unsigned(5 DOWNTO 0);
-    BEGIN
-        IF reset = '1' THEN
+    p_fsm_sync : process (clk, reset)
+        variable calc_dmg : unsigned(7 downto 0);
+        variable capt_limit : unsigned(7 downto 0);
+        variable spawn_lvl : unsigned(5 downto 0);
+    begin
+        if reset = '1' then
             current_state <= ST_INIT;
             prev_state <= ST_INIT;
             mon_select_idx <= "00";
@@ -263,45 +263,45 @@ BEGIN
             e_hp <= to_unsigned(18, 8);
             e_max_hp <= to_unsigned(18, 8);
 
-        ELSIF rising_edge(clk) THEN
+        elsif rising_edge(clk) then
             prev_state <= current_state;
-            IF current_state /= prev_state THEN
+            if current_state /= prev_state then
                 timer_cnt <= 0;
                 timer_done <= '0';
                 -- Animation, Pause & Snapshot Delay Timer
-            ELSIF current_state = ST_CAM_CAPTURE OR
-                current_state = ST_BATTLE_INTRO OR
-                current_state = ST_PLAYER_ATK OR
-                current_state = ST_ENEMY_ATK OR
-                current_state = ST_CAPTURE_TRY THEN
-                IF timer_cnt = TIMER_1_5_SEC THEN
+            elsif current_state = ST_CAM_CAPTURE or
+                current_state = ST_BATTLE_INTRO or
+                current_state = ST_PLAYER_ATK or
+                current_state = ST_ENEMY_ATK or
+                current_state = ST_CAPTURE_TRY then
+                if timer_cnt = TIMER_1_5_SEC then
                     timer_done <= '1';
                     timer_cnt <= 0;
-                ELSE
+                else
                     timer_cnt <= timer_cnt + 1;
                     timer_done <= '0';
-                END IF;
-            ELSE
+                end if;
+            else
                 timer_cnt <= 0;
                 timer_done <= '0';
-            END IF;
+            end if;
 
             -- Default Cursor output is 0
             cursor_out <= "00";
 
             -- State Transitions & Game Logic
-            CASE current_state IS
-                WHEN ST_INIT =>
+            case current_state is
+                when ST_INIT =>
                     current_state <= ST_TITLE;
 
                     ----------------------------------------------------------------
                     -- ST_TITLE: หน้าแรกของเกม (กด Enter เพื่อเริ่มเกม)
                     ----------------------------------------------------------------
-                WHEN ST_TITLE =>
-                    IF btn_enter_pulse = '1' THEN
+                when ST_TITLE =>
+                    if btn_enter_pulse = '1' then
                         current_state <= ST_SELECT_MON;
                         mon_select_idx <= "00";
-                    END IF;
+                    end if;
 
                     ----------------------------------------------------------------
                     -- ST_SELECT_MON: เลือกมอนสเตอร์ในคลัง (3 ตัวเริ่มต้น Lv 1)
@@ -309,284 +309,284 @@ BEGIN
                     -- ปุ่ม Enter ยืนยัน
                     -- Max HP = (Level * 2) + 16 (8-bit)
                     ----------------------------------------------------------------
-                WHEN ST_SELECT_MON =>
-                    IF btn_left_pulse = '1' OR btn_up_pulse = '1' THEN
-                        IF mon_select_idx = "00" THEN
+                when ST_SELECT_MON =>
+                    if btn_left_pulse = '1' or btn_up_pulse = '1' then
+                        if mon_select_idx = "00" then
                             mon_select_idx <= "10";
-                        ELSE
+                        else
                             mon_select_idx <= mon_select_idx - 1;
-                        END IF;
-                    ELSIF btn_right_pulse = '1' OR btn_down_pulse = '1' THEN
-                        IF mon_select_idx = "10" THEN
+                        end if;
+                    elsif btn_right_pulse = '1' or btn_down_pulse = '1' then
+                        if mon_select_idx = "10" then
                             mon_select_idx <= "00";
-                        ELSE
+                        else
                             mon_select_idx <= mon_select_idx + 1;
-                        END IF;
-                    END IF;
+                        end if;
+                    end if;
 
-                    cursor_out <= STD_LOGIC_VECTOR(mon_select_idx);
+                    cursor_out <= std_logic_vector(mon_select_idx);
 
-                    CASE mon_select_idx IS
-                        WHEN "00" =>
+                    case mon_select_idx is
+                        when "00" =>
                             p_type <= ELEM_FIRE;
                             p_level <= inv_lvl_fire;
                             p_max_hp <= ("0" & inv_lvl_fire & '0') + 16;
                             p_hp <= ("0" & inv_lvl_fire & '0') + 16;
-                        WHEN "01" =>
+                        when "01" =>
                             p_type <= ELEM_PLANT;
                             p_level <= inv_lvl_plant;
                             p_max_hp <= ("0" & inv_lvl_plant & '0') + 16;
                             p_hp <= ("0" & inv_lvl_plant & '0') + 16;
-                        WHEN OTHERS =>
+                        when others =>
                             p_type <= ELEM_WATER;
                             p_level <= inv_lvl_water;
                             p_max_hp <= ("0" & inv_lvl_water & '0') + 16;
                             p_hp <= ("0" & inv_lvl_water & '0') + 16;
-                    END CASE;
+                    end case;
 
                     -- Confirm Selected Monster
-                    IF btn_enter_pulse = '1' THEN
+                    if btn_enter_pulse = '1' then
                         current_state <= ST_CAM_LIVE;
-                    END IF;
+                    end if;
 
                     ----------------------------------------------------------------
                     -- ST_CAM_LIVE (Opcode 2): ส่องกล้องดูภาพสด รอกดชัตเตอร์ (Enter)
                     ----------------------------------------------------------------
-                WHEN ST_CAM_LIVE =>
-                    IF btn_enter_pulse = '1' THEN
+                when ST_CAM_LIVE =>
+                    if btn_enter_pulse = '1' then
                         current_state <= ST_CAM_CAPTURE;
-                    END IF;
+                    end if;
 
                     ----------------------------------------------------------------
                     -- ST_CAM_CAPTURE (Opcode 3): แช่ภาพนิ่ง รอ FPGA 1 ประมวลผลเสร็จ
                     -- ปลดล็อกด้วย Timer 1.5 วินาทีอัตโนมัติ (ไม่เปิดให้กด Enter ข้าม
                     -- เพื่อการันตีว่า FPGA 1 มีเวลานับสีเสร็จและส่งข้อมูล SPI กลับมาครบ)
                     ----------------------------------------------------------------
-                WHEN ST_CAM_CAPTURE =>
-                    IF timer_done = '1' THEN
+                when ST_CAM_CAPTURE =>
+                    if timer_done = '1' then
                         -- ชนิดศัตรู: รับตรงจาก FPGA 1 (2 บิต: 00=Fire, 01=Plant, 10=Water)
-                        CASE enemy_type_in IS
-                            WHEN ELEM_FIRE => e_type <= ELEM_FIRE;
-                            WHEN ELEM_PLANT => e_type <= ELEM_PLANT;
-                            WHEN ELEM_WATER => e_type <= ELEM_WATER;
-                            WHEN OTHERS => e_type <= ELEM_FIRE;
-                        END CASE;
+                        case enemy_type_in is
+                            when ELEM_FIRE => e_type <= ELEM_FIRE;
+                            when ELEM_PLANT => e_type <= ELEM_PLANT;
+                            when ELEM_WATER => e_type <= ELEM_WATER;
+                            when others => e_type <= ELEM_FIRE;
+                        end case;
 
                         -- เลเวลศัตรู: รับบิต LSB สีที่ 2 จาก FPGA 1 ('0' = เท่าเรา, '1' = เรา + 5)
-                        IF enemy_lvl_lsb_in = '1' THEN
-                            IF p_level > 58 THEN
+                        if enemy_lvl_lsb_in = '1' then
+                            if p_level > 58 then
                                 spawn_lvl := to_unsigned(63, 6);
-                            ELSE
+                            else
                                 spawn_lvl := p_level + 5;
-                            END IF;
-                        ELSE
+                            end if;
+                        else
                             spawn_lvl := p_level;
-                        END IF;
+                        end if;
 
                         e_level <= spawn_lvl;
                         e_max_hp <= ("0" & spawn_lvl & '0') + 16;
                         e_hp <= ("0" & spawn_lvl & '0') + 16;
 
                         current_state <= ST_BATTLE_INTRO;
-                    END IF;
+                    end if;
 
                     ----------------------------------------------------------------
                     -- ST_BATTLE_INTRO: เปิดตัวศัตรู (กด Enter เพื่อข้าม)
                     ----------------------------------------------------------------
-                WHEN ST_BATTLE_INTRO =>
-                    IF timer_done = '1' OR btn_enter_pulse = '1' THEN
+                when ST_BATTLE_INTRO =>
+                    if timer_done = '1' or btn_enter_pulse = '1' then
                         current_state <= ST_ACTION_MENU;
                         menu_idx <= "00";
-                    END IF;
+                    end if;
 
                     ----------------------------------------------------------------
                     -- ST_ACTION_MENU: เมนูคำสั่งหลัก (0: ATK, 1: CAPT, 2: RUN)
                     -- ปุ่ม บน/ล่าง เลื่อนเมนู, ปุ่ม Enter ยืนยัน
                     ----------------------------------------------------------------
-                WHEN ST_ACTION_MENU =>
+                when ST_ACTION_MENU =>
                     -- 2D Grid Menu Navigation:
                     -- Top Row   : [ATK ("00")]   [CAPT ("01")]
                     -- Bottom Row: [RUN ("10")]
-                    CASE menu_idx IS
-                        WHEN "00" => -- ATK (Top-Left)
-                            IF btn_right_pulse = '1' THEN
+                    case menu_idx is
+                        when "00" => -- ATK (Top-Left)
+                            if btn_right_pulse = '1' then
                                 menu_idx <= "01"; -- ขวา ไป CAPT
-                            ELSIF btn_down_pulse = '1' THEN
+                            elsif btn_down_pulse = '1' then
                                 menu_idx <= "10"; -- ล่าง ไป RUN (ใต้ ATK)
-                            ELSIF btn_left_pulse = '1' THEN
+                            elsif btn_left_pulse = '1' then
                                 menu_idx <= "01"; -- ซ้าย วนไป CAPT
-                            ELSIF btn_up_pulse = '1' THEN
+                            elsif btn_up_pulse = '1' then
                                 menu_idx <= "10"; -- บน วนไป RUN
-                            END IF;
+                            end if;
 
-                        WHEN "01" => -- CAPT (Top-Right)
-                            IF btn_left_pulse = '1' THEN
+                        when "01" => -- CAPT (Top-Right)
+                            if btn_left_pulse = '1' then
                                 menu_idx <= "00"; -- ซ้าย ไป ATK
-                            ELSIF btn_down_pulse = '1' THEN
+                            elsif btn_down_pulse = '1' then
                                 menu_idx <= "10"; -- ล่าง ไป RUN
-                            ELSIF btn_right_pulse = '1' THEN
+                            elsif btn_right_pulse = '1' then
                                 menu_idx <= "00"; -- ขวา วนไป ATK
-                            ELSIF btn_up_pulse = '1' THEN
+                            elsif btn_up_pulse = '1' then
                                 menu_idx <= "10"; -- บน วนไป RUN
-                            END IF;
+                            end if;
 
-                        WHEN OTHERS => -- RUN ("10", Bottom-Left)
-                            IF btn_up_pulse = '1' THEN
+                        when others => -- RUN ("10", Bottom-Left)
+                            if btn_up_pulse = '1' then
                                 menu_idx <= "00"; -- บน ไป ATK (บน RUN)
-                            ELSIF btn_right_pulse = '1' THEN
+                            elsif btn_right_pulse = '1' then
                                 menu_idx <= "01"; -- ขวา ไป CAPT
-                            ELSIF btn_down_pulse = '1' THEN
+                            elsif btn_down_pulse = '1' then
                                 menu_idx <= "00"; -- ล่าง วนไป ATK
-                            ELSIF btn_left_pulse = '1' THEN
+                            elsif btn_left_pulse = '1' then
                                 menu_idx <= "01"; -- ซ้าย วนไป CAPT
-                            END IF;
-                    END CASE;
-                    cursor_out <= STD_LOGIC_VECTOR(menu_idx);
+                            end if;
+                    end case;
+                    cursor_out <= std_logic_vector(menu_idx);
 
-                    IF btn_enter_pulse = '1' THEN
-                        CASE menu_idx IS
-                            WHEN "00" => -- ATK
+                    if btn_enter_pulse = '1' then
+                        case menu_idx is
+                            when "00" => -- ATK
                                 current_state <= ST_SKILL_MENU;
                                 skill_idx <= '0';
-                            WHEN "01" => -- CAPT
+                            when "01" => -- CAPT
                                 current_state <= ST_CAPTURE_TRY;
-                            WHEN OTHERS => -- RUN
+                            when others => -- RUN
                                 current_state <= ST_RUN_ESCAPE;
-                        END CASE;
-                    END IF;
+                        end case;
+                    end if;
 
                     ----------------------------------------------------------------
                     -- ST_SKILL_MENU: เลือกสกิล (0: Normal Tackle, 1: Elemental Strike)
                     -- ปุ่ม บน/ล่าง สลับสกิล, ปุ่ม Enter โจมตี
                     ----------------------------------------------------------------
-                WHEN ST_SKILL_MENU =>
-                    IF btn_up_pulse = '1' OR btn_down_pulse = '1' OR btn_left_pulse = '1' OR btn_right_pulse = '1' THEN
-                        skill_idx <= NOT skill_idx;
-                    END IF;
+                when ST_SKILL_MENU =>
+                    if btn_up_pulse = '1' or btn_down_pulse = '1' or btn_left_pulse = '1' or btn_right_pulse = '1' then
+                        skill_idx <= not skill_idx;
+                    end if;
                     cursor_out <= "0" & skill_idx;
 
-                    IF btn_enter_pulse = '1' THEN
+                    if btn_enter_pulse = '1' then
                         current_state <= ST_PLAYER_ATK;
-                    END IF;
+                    end if;
 
                     ----------------------------------------------------------------
                     -- ST_PLAYER_ATK: ผู้เล่นโจมตี (8-bit Level Scaled Damage)
                     ----------------------------------------------------------------
-                WHEN ST_PLAYER_ATK =>
+                when ST_PLAYER_ATK =>
                     calc_dmg := calc_damage(p_type, e_type, p_level, skill_idx);
                     cursor_out <= "0" & skill_idx;
-                    IF timer_done = '1' OR btn_enter_pulse = '1' THEN
-                        IF e_hp <= calc_dmg THEN
-                            e_hp <= (OTHERS => '0');
+                    if timer_done = '1' or btn_enter_pulse = '1' then
+                        if e_hp <= calc_dmg then
+                            e_hp <= (others => '0');
                             current_state <= ST_VICTORYKO;
-                        ELSE
+                        else
                             e_hp <= e_hp - calc_dmg;
                             current_state <= ST_ENEMY_ATK;
-                        END IF;
-                    END IF;
+                        end if;
+                    end if;
 
                     ----------------------------------------------------------------
                     -- ST_ENEMY_ATK: ศัตรูโจมตีสวน (8-bit Level Scaled Elemental Strike)
                     ----------------------------------------------------------------
-                WHEN ST_ENEMY_ATK =>
+                when ST_ENEMY_ATK =>
                     calc_dmg := calc_damage(e_type, p_type, e_level, '1');
                     cursor_out <= "0" & '1';
-                    IF timer_done = '1' OR btn_enter_pulse = '1' THEN
-                        IF p_hp <= calc_dmg THEN
-                            p_hp <= (OTHERS => '0');
+                    if timer_done = '1' or btn_enter_pulse = '1' then
+                        if p_hp <= calc_dmg then
+                            p_hp <= (others => '0');
 
                             -- ลด Level ในคลังลง 1 เมื่อพ่ายแพ้ (ขั้นต่ำ Level 1)
-                            CASE p_type IS
-                                WHEN ELEM_FIRE =>
-                                    IF inv_lvl_fire > 1 THEN
+                            case p_type is
+                                when ELEM_FIRE =>
+                                    if inv_lvl_fire > 1 then
                                         inv_lvl_fire <= inv_lvl_fire - 1;
-                                    END IF;
-                                WHEN ELEM_PLANT =>
-                                    IF inv_lvl_plant > 1 THEN
+                                    end if;
+                                when ELEM_PLANT =>
+                                    if inv_lvl_plant > 1 then
                                         inv_lvl_plant <= inv_lvl_plant - 1;
-                                    END IF;
-                                WHEN OTHERS => -- ELEM_WATER
-                                    IF inv_lvl_water > 1 THEN
+                                    end if;
+                                when others => -- ELEM_WATER
+                                    if inv_lvl_water > 1 then
                                         inv_lvl_water <= inv_lvl_water - 1;
-                                    END IF;
-                            END CASE;
+                                    end if;
+                            end case;
 
-                            IF p_level > 1 THEN
+                            if p_level > 1 then
                                 p_level <= p_level - 1;
-                            END IF;
+                            end if;
 
                             current_state <= ST_DEFEAT;
-                        ELSE
+                        else
                             p_hp <= p_hp - calc_dmg;
                             current_state <= ST_ACTION_MENU;
                             menu_idx <= "00";
-                        END IF;
-                    END IF;
+                        end if;
+                    end if;
 
                     ----------------------------------------------------------------
                     -- ST_CAPTURE_TRY: ตรวจสอบจับศัตรู
                     -- เกณฑ์สำเร็จ: เลือดเหลือ <= 25% ของ Max HP (e_max_hp / 4) หรือ <= 4
                     ----------------------------------------------------------------
-                WHEN ST_CAPTURE_TRY =>
-                    capt_limit := "00" & e_max_hp(7 DOWNTO 2); -- Max HP / 4
-                    IF capt_limit < 4 THEN
+                when ST_CAPTURE_TRY =>
+                    capt_limit := "00" & e_max_hp(7 downto 2); -- Max HP / 4
+                    if capt_limit < 4 then
                         capt_limit := to_unsigned(4, 8);
-                    END IF;
+                    end if;
 
-                    IF timer_done = '1' OR btn_enter_pulse = '1' THEN
-                        IF e_hp <= capt_limit THEN
+                    if timer_done = '1' or btn_enter_pulse = '1' then
+                        if e_hp <= capt_limit then
                             -- จับสำเร็จ: บันทึกเฉพาะเมื่อศัตรูมีเลเวลสูงกว่าเดิมในคลัง (ป้องกันเลเวลลดลง)
-                            CASE e_type IS
-                                WHEN ELEM_FIRE =>
-                                    IF e_level > inv_lvl_fire THEN
+                            case e_type is
+                                when ELEM_FIRE =>
+                                    if e_level > inv_lvl_fire then
                                         inv_lvl_fire <= e_level;
-                                    ELSE
+                                    else
                                         inv_lvl_fire <= inv_lvl_fire + 1;
-                                    END IF;
+                                    end if;
 
-                                WHEN ELEM_PLANT =>
-                                    IF e_level > inv_lvl_plant THEN
+                                when ELEM_PLANT =>
+                                    if e_level > inv_lvl_plant then
                                         inv_lvl_plant <= e_level;
-                                    ELSE
+                                    else
                                         inv_lvl_plant <= inv_lvl_plant + 1;
-                                    END IF;
-                                WHEN OTHERS =>
-                                    IF e_level > inv_lvl_water THEN
+                                    end if;
+                                when others =>
+                                    if e_level > inv_lvl_water then
                                         inv_lvl_water <= e_level;
-                                    ELSE
+                                    else
                                         inv_lvl_water <= inv_lvl_water + 1;
-                                    END IF;
-                            END CASE;
+                                    end if;
+                            end case;
                             current_state <= ST_VICTORYCAP;
-                        ELSE
+                        else
                             -- จับไม่สำเร็จ: โดนศัตรูโจมตีสวนฟรี 1 ครั้ง
                             current_state <= ST_ENEMY_ATK;
-                        END IF;
-                    END IF;
+                        end if;
+                    end if;
 
                     ----------------------------------------------------------------
                     -- ST_RUN_ESCAPE: วิ่งหนีสำเร็จ -> กด Enter กลับหน้าเลือกตัว
                     ----------------------------------------------------------------
-                WHEN ST_RUN_ESCAPE =>
-                    IF btn_enter_pulse = '1' THEN
+                when ST_RUN_ESCAPE =>
+                    if btn_enter_pulse = '1' then
                         current_state <= ST_SELECT_MON;
-                    END IF;
+                    end if;
 
                     ----------------------------------------------------------------
                     -- ST_VICTORYKO / ST_DEFEAT / ST_VICTORYCAP: จบการต่อสู้ -> กด Enter กลับหน้าเลือกตัว
                     ----------------------------------------------------------------
-                WHEN ST_VICTORYKO | ST_DEFEAT | ST_VICTORYCAP =>
-                    IF btn_enter_pulse = '1' THEN
+                when ST_VICTORYKO | ST_DEFEAT | ST_VICTORYCAP =>
+                    if btn_enter_pulse = '1' then
                         current_state <= ST_SELECT_MON;
-                    END IF;
+                    end if;
 
-                WHEN OTHERS =>
+                when others =>
                     cursor_out <= "00";
                     current_state <= ST_INIT;
 
-            END CASE;
-        END IF;
-    END PROCESS;
+            end case;
+        end if;
+    end process;
 
     ----------------------------------------------------------------------------
     -- 3. Output Assignment Process (Combinational Mapping for FPGA 1)
@@ -594,36 +594,36 @@ BEGIN
 
     -- Monster Status (HP mapped to full-scale 0..255 for FPGA 1 VGA bar)
     player_type_out <= p_type;
-    player_lvl_out <= STD_LOGIC_VECTOR(p_level);
+    player_lvl_out <= std_logic_vector(p_level);
     player_hp_out <= map_hp_255(p_hp, p_max_hp);
     player_max_hp_o <= x"FF"; -- Always 255 for full-scale health bar
 
     enemy_type_out <= e_type;
-    enemy_lvl_out <= STD_LOGIC_VECTOR(e_level);
+    enemy_lvl_out <= std_logic_vector(e_level);
     enemy_hp_out <= map_hp_255(e_hp, e_max_hp);
     enemy_max_hp_o <= x"FF"; -- Always 255 for full-scale health bar
 
     -- State Code for VGA Scene Compositor (Opcode 4-bit)
-    PROCESS (current_state)
-    BEGIN
-        CASE current_state IS
-            WHEN ST_TITLE => state_code_int <= "0000"; -- 0: Title
-            WHEN ST_SELECT_MON => state_code_int <= "0001"; -- 1: select char
-            WHEN ST_CAM_LIVE => state_code_int <= "0010"; -- 2: camera
-            WHEN ST_CAM_CAPTURE => state_code_int <= "0011"; -- 3: capture
-            WHEN ST_BATTLE_INTRO => state_code_int <= "0100"; -- 4: prepare
-            WHEN ST_ACTION_MENU => state_code_int <= "0101"; -- 5: action
-            WHEN ST_SKILL_MENU => state_code_int <= "0110"; -- 6: skill menu
-            WHEN ST_PLAYER_ATK => state_code_int <= "0111"; -- 7: ATK
-            WHEN ST_ENEMY_ATK => state_code_int <= "1000"; -- 8: E ATK
-            WHEN ST_CAPTURE_TRY => state_code_int <= "1001"; -- 9: Capt
-            WHEN ST_RUN_ESCAPE => state_code_int <= "1010"; -- 10: Evade
-            WHEN ST_VICTORYKO => state_code_int <= "1011"; -- 11: Victory
-            WHEN ST_DEFEAT => state_code_int <= "1100"; -- 12: Loss
-            WHEN ST_VICTORYCAP => state_code_int <= "1101"; -- 13: VictoryCap
-            WHEN OTHERS => state_code_int <= "0000";
-        END CASE;
-    END PROCESS;
+    process (current_state)
+    begin
+        case current_state is
+            when ST_TITLE => state_code_int <= "0000"; -- 0: Title
+            when ST_SELECT_MON => state_code_int <= "0001"; -- 1: select char
+            when ST_CAM_LIVE => state_code_int <= "0010"; -- 2: camera
+            when ST_CAM_CAPTURE => state_code_int <= "0011"; -- 3: capture
+            when ST_BATTLE_INTRO => state_code_int <= "0100"; -- 4: prepare
+            when ST_ACTION_MENU => state_code_int <= "0101"; -- 5: action
+            when ST_SKILL_MENU => state_code_int <= "0110"; -- 6: skill menu
+            when ST_PLAYER_ATK => state_code_int <= "0111"; -- 7: ATK
+            when ST_ENEMY_ATK => state_code_int <= "1000"; -- 8: E ATK
+            when ST_CAPTURE_TRY => state_code_int <= "1001"; -- 9: Capt
+            when ST_RUN_ESCAPE => state_code_int <= "1010"; -- 10: Evade
+            when ST_VICTORYKO => state_code_int <= "1011"; -- 11: Victory
+            when ST_DEFEAT => state_code_int <= "1100"; -- 12: Loss
+            when ST_VICTORYCAP => state_code_int <= "1101"; -- 13: VictoryCap
+            when others => state_code_int <= "0000";
+        end case;
+    end process;
 
     state_code_out <= state_code_int;
 
@@ -634,10 +634,10 @@ BEGIN
     -- led(3)   = '1' during ST_CAM_CAPTURE (Snapshot active)
     -- led(7:4) = state_code_out (Current Opcode 0..13)
     ----------------------------------------------------------------------------
-    led(1 DOWNTO 0) <= enemy_type_in;
+    led(1 downto 0) <= enemy_type_in;
     led(2) <= enemy_lvl_lsb_in;
-    led(3) <= '1' WHEN current_state = ST_CAM_CAPTURE ELSE
+    led(3) <= '1' when current_state = ST_CAM_CAPTURE else
     '0';
-    led(7 DOWNTO 4) <= state_code_int;
+    led(7 downto 4) <= state_code_int;
 
-END ARCHITECTURE Behavioral;
+end architecture Behavioral;
